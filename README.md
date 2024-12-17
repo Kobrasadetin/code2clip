@@ -1,12 +1,12 @@
-# File Concatenator
+# Code2Clip File Concatenator
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
-**Code2Clip File Concatenator** is a simple desktop application that allows you to:
+**Code2Clip** is a simple desktop application that allows you to:
 
 - Drag and drop multiple files onto the application window.
 - Reorder the files to change the concatenation order.
-- Wrap each file's contents with XML-like tags based on their filenames.
+- Wrap each file's contents with tags based on their filenames.
 - Copy the final concatenated output directly to the clipboard.
 - Inspect file encodings and metadata via a right-click context menu.
 
@@ -15,11 +15,12 @@
 ## Features
 
 - **Drag and Drop**: Add files easily by dragging them into the window.
-- **Reorder Files**: Change the order in which file contents are concatenated.
-- **Remove Files**: Right-click to remove a file from the list.
-- **Check Encoding**: Detect and display file encodings using `chardet`.
-- **View Metadata**: Get file size and last modified date.
 - **Concatenate & Copy**: Combines all file contents into XML-like tags and copies the result to the clipboard.
+- **WSL2 Support in Windows**
+
+## Why?
+
+Easy way to paste file contents to your favourite large language model.
 
 ---
 
