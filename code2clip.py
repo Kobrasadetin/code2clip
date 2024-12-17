@@ -1,101 +1,24 @@
 import sys
 import os
-import chardet
 from PyQt5.QtWidgets import (
     QApplication,
     QWidget,
     QVBoxLayout,
     QPushButton,
-    QListWidget,
-    QListWidgetItem,
+    QLabel,
+    QFileDialog,
     QMessageBox,
-    QMenu,
+    QHBoxLayout,
+    QLineEdit,
+    QCheckBox
 )
-from PyQt5.QtCore import Qt, QMimeData, QDateTime
-from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QClipboard
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QDragEnterEvent, QDropEvent
+from file_list_widget import FileListWidget
+from file_concatenator import concatenate_files
 
-class FileListWidget(QListWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        # Enable drag and drop reordering within the list
-        self.setAcceptDrops(True)
-        self.setDragEnabled(True)
-        self.setDropIndicatorShown(True)
-        self.setDefaultDropAction(Qt.MoveAction)
-        self.setSelectionMode(self.SingleSelection)
-        self.setDragDropMode(QListWidget.InternalMove)
-
-    def contextMenuEvent(self, event):
-        item = self.itemAt(event.pos())
-        if item:
-            menu = QMenu(self)
-            remove_action = menu.addAction("Remove File")
-            encoding_action = menu.addAction("Check Encoding")
-            metadata_action = menu.addAction("View Metadata")
-
-            action = menu.exec_(self.mapToGlobal(event.pos()))
-            if action == remove_action:
-                self.remove_item(item)
-            elif action == encoding_action:
-                self.check_encoding(item)
-            elif action == metadata_action:
-                self.view_metadata(item)
-
-    def remove_item(self, item):
-        row = self.row(item)
-        self.takeItem(row)
-
-    def check_encoding(self, item):
-        filepath = item.text()
-        try:
-            with open(filepath, 'rb') as f:
-                raw_data = f.read()
-                result = chardet.detect(raw_data)
-                encoding = result['encoding']
-                confidence = result['confidence']
-                if encoding:
-                    QMessageBox.information(
-                        self,
-                        "File Encoding",
-                        f"Encoding: {encoding}\nConfidence: {confidence*100:.2f}%",
-                    )
-                else:
-                    QMessageBox.warning(
-                        self,
-                        "Encoding Detection Failed",
-                        "Could not detect the encoding of the file.",
-                    )
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Error",
-                f"Failed to read {os.path.basename(filepath)}.\n{str(e)}",
-            )
-
-    def view_metadata(self, item):
-        filepath = item.text()
-        try:
-            size = os.path.getsize(filepath)
-            last_modified_timestamp = os.path.getmtime(filepath)
-            last_modified = QDateTime.fromSecsSinceEpoch(int(last_modified_timestamp)).toString(
-                Qt.DefaultLocaleLongDate
-            )
-            metadata = (
-                f"Filename: {os.path.basename(filepath)}\n"
-                f"Size: {size} bytes\n"
-                f"Last Modified: {last_modified}"
-            )
-            QMessageBox.information(
-                self,
-                "File Metadata",
-                metadata,
-            )
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Error",
-                f"Failed to retrieve metadata for {os.path.basename(filepath)}.\n{str(e)}",
-            )
+# OS-specific separator
+separator = os.sep
 
 class MainWindow(QWidget):
     def __init__(self):
@@ -117,12 +40,46 @@ class MainWindow(QWidget):
         self.list_widget = FileListWidget()
         layout.addWidget(self.list_widget)
 
+        # Root path and options
+        root_layout = QHBoxLayout()
+
+        # Root Path Label
+        self.root_label = QLabel("Root Path: None")
+        root_layout.addWidget(self.root_label)
+
+        # Enable Path Checkbox
+        self.enable_root_checkbox = QCheckBox("Include path")
+        self.enable_root_checkbox.stateChanged.connect(self.toggle_root_path)
+        root_layout.addWidget(self.enable_root_checkbox)
+
+        layout.addLayout(root_layout)
+
+        # File prefix and suffix inputs
+        prefix_suffix_layout = QHBoxLayout()
+
+        # Prefix Input
+        self.prefix_label = QLabel("Prefix:")
+        prefix_suffix_layout.addWidget(self.prefix_label)
+        self.prefix_input = QLineEdit('<file filename="$path'+separator+'$filename">')
+        prefix_suffix_layout.addWidget(self.prefix_input)
+
+        # Suffix Input
+        self.suffix_label = QLabel("Suffix:")
+        prefix_suffix_layout.addWidget(self.suffix_label)
+        self.suffix_input = QLineEdit('</file>')
+        prefix_suffix_layout.addWidget(self.suffix_input)
+
+        layout.addLayout(prefix_suffix_layout)
+
         # Concatenate button
         self.concat_button = QPushButton("Concatenate and Copy to Clipboard")
-        self.concat_button.clicked.connect(self.concatenate_files)
+        self.concat_button.clicked.connect(self.concatenate_files_wrapper)
         layout.addWidget(self.concat_button)
 
         self.setLayout(layout)
+
+        # Internal State
+        self.root_path = None
 
     def dragEnterEvent(self, event: QDragEnterEvent):
         if event.mimeData().hasUrls():
@@ -131,65 +88,45 @@ class MainWindow(QWidget):
             event.ignore()
 
     def dropEvent(self, event: QDropEvent):
-        if event.mimeData().hasUrls():
+        had_file = False
+        if event.mimeData().hasText():
+            # Process plain text (e.g., from VSCode)
+            filepaths = event.mimeData().text().strip().splitlines()
+            for filepath in filepaths:
+                filepath = filepath.strip()
+                if os.path.isfile(filepath):
+                    self.list_widget.add_file(filepath)
+                    had_file = True
+            event.acceptProposedAction()
+        if not had_file and event.mimeData().hasUrls():
+            # Process URLs (standard drag-and-drop)
             for url in event.mimeData().urls():
                 filepath = url.toLocalFile()
                 if os.path.isfile(filepath):
-                    self.add_file(filepath)
+                    self.list_widget.add_file(filepath)
             event.acceptProposedAction()
         else:
             event.ignore()
 
-    def add_file(self, filepath):
-        # Avoid adding duplicate files
-        existing_items = [self.list_widget.item(i).text() for i in range(self.list_widget.count())]
-        if filepath not in existing_items:
-            item = QListWidgetItem(filepath)
-            self.list_widget.addItem(item)
+    def toggle_root_path(self):
+        if self.enable_root_checkbox.isChecked():
+            common_path = os.path.commonpath(self.list_widget.files) if self.list_widget.files else None
+            folder = QFileDialog.getExistingDirectory(self, "Select Root Directory", common_path)
+            if folder:
+                self.root_path = folder
+                self.list_widget.set_root_path(folder)
+                self.root_label.setText(f"Root Path: {folder}")
+            else:
+                self.enable_root_checkbox.setChecked(False)
+        else:
+            self.root_path = None
+            self.list_widget.disable_root_path()
+            self.root_label.setText("Root Path: None")
 
-    def concatenate_files(self):
-        if self.list_widget.count() == 0:
-            QMessageBox.warning(self, "No Files", "Please add files to concatenate.")
-            return
-
-        concatenated_text = ""
-
-        for index in range(self.list_widget.count()):
-            filepath = self.list_widget.item(index).text()
-            filename = os.path.basename(filepath)
-            try:
-                with open(filepath, 'r', encoding='utf-8') as file:
-                    content = file.read()
-            except UnicodeDecodeError:
-                # If UTF-8 fails, try detecting encoding
-                try:
-                    with open(filepath, 'rb') as file:
-                        raw_data = file.read()
-                        result = chardet.detect(raw_data)
-                        encoding = result['encoding']
-                        if encoding:
-                            content = raw_data.decode(encoding)
-                        else:
-                            raise UnicodeDecodeError("Unknown encoding")
-                except Exception as e:
-                    QMessageBox.critical(
-                        self,
-                        "Error",
-                        f"Failed to read {filename} with detected encoding.\n{str(e)}",
-                    )
-                    return
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Failed to read {filename}.\n{str(e)}")
-                return
-
-            # Wrap content with XML-like tags
-            concatenated_text += f'<file filename="{filename}">\n{content}\n</file>\n'
-
-        # Copy to clipboard
-        clipboard: QClipboard = QApplication.clipboard()
-        clipboard.setText(concatenated_text)
-
-        QMessageBox.information(self, "Success", "Concatenated text copied to clipboard.")
+    def concatenate_files_wrapper(self):
+        prefix = self.prefix_input.text()
+        suffix = self.suffix_input.text()
+        concatenate_files(self.list_widget.files, self.root_path, prefix, suffix)
 
 def main():
     app = QApplication(sys.argv)
