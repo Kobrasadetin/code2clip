@@ -10,8 +10,8 @@ def concatenate_files(file_paths, root_path=None, prefix='<file filename="$path/
     Copies the final result to the clipboard.
 
     :param file_paths: List of absolute file paths.
-    :param root_path: Common root path to calculate relative paths (optional).
-    :param prefix: String prefix for each file's content. Use $path and $filename for placeholders.
+    :param include_path: Whether to include the relative path in $filepath (default: True).
+    :param prefix: String prefix for each file's content. Use $filepath as a placeholder.
     :param suffix: String suffix for each file's content.
     """
     if not file_paths:
@@ -22,11 +22,14 @@ def concatenate_files(file_paths, root_path=None, prefix='<file filename="$path/
 
     for filepath in file_paths:
         # Calculate relative path based on root_path
-        relative_path = os.path.relpath(filepath, root_path) if root_path else os.path.basename(filepath)
-        path_only, filename = os.path.split(relative_path)
+        relative_path = os.path.relpath(filepath, root_path) if root_path else ""
+        filename = os.path.basename(filepath)
 
-        # Replace placeholders in prefix
-        file_prefix = prefix.replace("$path", path_only).replace("$filename", filename)
+        # Determine the value of $filepath
+        filepath_string = os.path.join(relative_path, filename) if relative_path else filename
+
+        # Replace $filepath in the prefix
+        file_prefix = prefix.replace("$filepath", filepath_string)
 
         try:
             # Attempt to read file as UTF-8
@@ -44,10 +47,10 @@ def concatenate_files(file_paths, root_path=None, prefix='<file filename="$path/
                     else:
                         raise UnicodeDecodeError("Unknown encoding")
             except Exception as e:
-                QMessageBox.critical(None, "Error", f"Failed to read {relative_path} with detected encoding.\n{str(e)}")
+                QMessageBox.critical(None, "Error", f"Failed to read {filepath}.\n{str(e)}")
                 return
         except Exception as e:
-            QMessageBox.critical(None, "Error", f"Failed to read {relative_path}.\n{str(e)}")
+            QMessageBox.critical(None, "Error", f"Failed to read {filepath}.\n{str(e)}")
             return
 
         # Wrap content with custom prefix and suffix
@@ -58,3 +61,4 @@ def concatenate_files(file_paths, root_path=None, prefix='<file filename="$path/
     clipboard.setText(concatenated_text)
 
     QMessageBox.information(None, "Success", "Concatenated text copied to clipboard.")
+

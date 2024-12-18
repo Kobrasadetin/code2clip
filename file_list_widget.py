@@ -2,6 +2,7 @@ import os
 import chardet
 from PyQt5.QtWidgets import (
     QListWidget,
+    QListWidgetItem,
     QMenu,
     QMessageBox
 )
@@ -42,7 +43,7 @@ class FileListWidget(QListWidget):
         self.takeItem(row)
 
     def check_encoding(self, item):
-        filepath = self.files[self.row(item)]
+        filepath = item.data(Qt.UserRole)
         try:
             with open(filepath, 'rb') as f:
                 raw_data = f.read()
@@ -69,7 +70,7 @@ class FileListWidget(QListWidget):
             )
 
     def view_metadata(self, item):
-        filepath = self.files[self.row(item)]
+        filepath = item.data(Qt.UserRole)
         try:
             size = os.path.getsize(filepath)
             last_modified_timestamp = os.path.getmtime(filepath)
@@ -110,4 +111,16 @@ class FileListWidget(QListWidget):
         self.clear()
         for filepath in self.files:
             relative_path = os.path.relpath(filepath, self.root_path) if self.root_path else os.path.basename(filepath)
-            self.addItem(relative_path)
+            item = QListWidgetItem(relative_path)
+            item.setData(Qt.UserRole, filepath)  # Store full path
+            self.addItem(item)
+
+    def dropEvent(self, event):
+        super().dropEvent(event)
+        # update self.files to match the new order
+        new_files = []
+        for index in range(self.count()):
+            item = self.item(index)
+            filepath = item.data(Qt.UserRole)
+            new_files.append(filepath)
+        self.files = new_files  # Update the internal list

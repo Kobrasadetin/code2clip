@@ -15,8 +15,8 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QCheckBox
 )
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QDragEnterEvent, QDropEvent
+from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtGui import QDragEnterEvent, QDropEvent, QIcon
 from file_list_widget import FileListWidget
 from file_concatenator import concatenate_files
 
@@ -40,7 +40,7 @@ def get_default_wsl_distro():
 
 def convert_wsl_path(filepath):
     """
-    Convert a WSL2 path to a Windows-compatible network path using \\wsl.localhost\\.
+    Convert a WSL2 path to a Windows-compatible network path using \wsl.localhost\.
     """
     if platform.system() == "Windows" and filepath.startswith("/"):
         # Dynamically get the default WSL2 distro
@@ -92,7 +92,7 @@ class MainWindow(QWidget):
         # Prefix Input
         self.prefix_label = QLabel("Prefix:")
         prefix_suffix_layout.addWidget(self.prefix_label)
-        self.prefix_input = QLineEdit('<file filename="$path'+separator+'$filename">')
+        self.prefix_input = QLineEdit('<file filename="$filepath">')
         prefix_suffix_layout.addWidget(self.prefix_input)
 
         # Suffix Input
@@ -161,10 +161,17 @@ class MainWindow(QWidget):
     def concatenate_files_wrapper(self):
         prefix = self.prefix_input.text()
         suffix = self.suffix_input.text()
+        include_path = self.enable_root_checkbox.isChecked()  # Use checkbox state
+
         concatenate_files(self.list_widget.files, self.root_path, prefix, suffix)
 
 def main():
     app = QApplication(sys.argv)
+    app_icon = QIcon()
+    app_icon.addFile('gui/icon_32.png', QSize(32,32))
+    app_icon.addFile('gui/icon_48.png', QSize(48,48))
+    app_icon.addFile('gui/icon_256.png', QSize(256,256))
+    app.setWindowIcon(app_icon)
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())
