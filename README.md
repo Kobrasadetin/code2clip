@@ -2,84 +2,83 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
-**Code2Clip** is a simple desktop application that allows you to:
+**Code2Clip** is a simple desktop application for quickly concatenating file contents and copying the result to the clipboard.
 
-- Drag and drop multiple files onto the application window.
-- Reorder the files to change the concatenation order.
-- Wrap each file's contents with tags based on their filenames.
-- Copy the final concatenated output directly to the clipboard.
-- Inspect file encodings and metadata via a right-click context menu.
+### Key Features:
+- **Drag and Drop**: Add files by dragging them into the application window.
+- **Reordering**: Change the order of concatenation by dragging files in the list.
+- **Custom Wrapping**: Wrap file contents with **XML**, **Markdown**, or **custom** tags based on their filenames.
+- **Clipboard Output**: Instantly copies the concatenated result to your clipboard.
+- **File Encoding & Metadata**: Inspect file encodings and metadata via a right-click context menu.
+- **WSL2 Path Support**: Automatically converts WSL2 paths to Windows-compatible paths.
 
 ---
 
-## Features
+## Why Use Code2Clip?
 
-- **Drag and Drop**: Add files easily by dragging them into the window.
-- **Concatenate & Copy**: Combines all file contents into XML-like tags and copies the result to the clipboard.
-- **WSL2 Support in Windows**
-
-## Why?
-
-Easy way to paste file contents to your favourite large language model.
+Code2Clip provides a fast way to **combine multiple files** and **paste their contents** into AI models like ChatGPT, DeepSeek, and Claude without manually copying and formatting each file.
 
 ---
 
 ## Installation
 
 ### **Prerequisites**
+- **Python 3.7+** – Download from [python.org](https://www.python.org/downloads/)
+- **Pip** (comes with Python)
+- **PyQt5** (GUI framework)
 
-- **Python 3.6 or higher**: Install Python from [python.org](https://www.python.org/downloads/).
-- **Pip**: Python's package manager (comes pre-installed with Python).
-
-### **Clone the Repository**
-
-```bash
-git clone https://github.com/yourusername/file-concatenator.git
-cd file-concatenator
-```
-
-### **Install Dependencies**
-
-It's recommended to use a virtual environment to manage dependencies.
+### **Clone and Install Dependencies**
+It's recommended to use a virtual environment:
 
 ```bash
-# For example, in an anaconda env
-conda install -c conda-forge --yes --file requirements.txt
+# Clone the repository
+git clone https://github.com/yourusername/code2clip.git
+cd code2clip
+
+# Install dependencies in a virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+pip install -r requirements.txt
 ```
 
 ---
 
 ## Usage
 
-Run the application using Python:
+Run the application using:
 
 ```bash
 python code2clip.py
 ```
 
-### **How to Use the Application**
+### **How to Use:**
 1. **Drag and drop files** into the main window.
 2. **Reorder files** by dragging them in the list.
-3. **Right-click** on any file in the list to:
-   - Remove the file.
-   - Check its encoding.
-   - View file metadata.
-4. Click the **"Concatenate and Copy to Clipboard"** button.
-5. Paste the concatenated text wherever you need it!
+3. **Right-click** on a file for options:
+   - Remove the file
+   - Check its encoding
+   - View metadata (size, modification date)
+4. **Select a preset** (XML, Markdown, or Custom) to define how files are wrapped.
+5. **Click "Concatenate and Copy to Clipboard"**.
+6. **Paste the result** into your desired application.
 
-### **Example Output**
-For files `file1.txt` and `file2.txt` with content:
+---
+
+## Example Output
+
+For files `file1.txt` and `file2.txt`:
 
 **file1.txt**:
 ```
 Hello World
 ```
+
 **file2.txt**:
 ```
 Goodbye World
 ```
 
-The output will look like this:
+With **XML Preset**, the output will be:
 
 ```xml
 <file filename="file1.txt">
@@ -90,22 +89,22 @@ Goodbye World
 </file>
 ```
 
-This output is copied directly to your clipboard.
+This text is **automatically copied** to your clipboard.
 
 ---
 
 ## Packaging as an Executable
 
-To distribute the application without requiring Python, create a standalone executable using **PyInstaller**:
+To distribute the app **without requiring Python**, create a standalone executable using **PyInstaller**:
 
-1. **Install PyInstaller**
+1. **Install PyInstaller**:
    ```bash
    pip install pyinstaller
    ```
 
-2. **Create Executable**
+2. **Build the Executable**:
    ```bash
-   pyinstaller --onefile --windowed file_concatenator.py
+   pyinstaller --onefile --windowed code2clip.py
    ```
 
 3. The executable will be located in the `dist` folder.
@@ -114,7 +113,7 @@ To distribute the application without requiring Python, create a standalone exec
 
 ## Contributing
 
-Contributions are welcome! Please read the [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting bugs, suggesting features, and submitting pull requests.
+Contributions are welcome! To report bugs, suggest features, or submit pull requests, please check out the [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -126,5 +125,7 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Acknowledgements
 
-- [PyQt5](https://www.riverbankcomputing.com/software/pyqt/intro/)
-- [chardet](https://github.com/chardet/chardet)
+- [PyQt5](https://www.riverbankcomputing.com/software/pyqt/intro/) – GUI framework
+- [chardet](https://github.com/chardet/chardet) – Encoding detection library
+
+---
