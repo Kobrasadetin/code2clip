@@ -32,13 +32,16 @@ jobs:
           pyinstaller --onefile --windowed code2clip.py
         shell: bash
 
-      - name: Set Binary Path
-        id: set_binary
+      - name: Rename Binary for macOS & Linux
         run: |
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            echo "BINARY_PATH=dist/code2clip.exe" >> $GITHUB_ENV
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            mv dist/code2clip dist/code2clip-macos
+            echo "BINARY_PATH=dist/code2clip-macos" >> $GITHUB_ENV
+          elif [[ "$RUNNER_OS" == "Linux" ]]; then
+            mv dist/code2clip dist/code2clip-linux
+            echo "BINARY_PATH=dist/code2clip-linux" >> $GITHUB_ENV
           else
-            echo "BINARY_PATH=dist/code2clip" >> $GITHUB_ENV
+            echo "BINARY_PATH=dist/code2clip.exe" >> $GITHUB_ENV
           fi
         shell: bash
 
@@ -48,6 +51,7 @@ jobs:
           name: Code2Clip-${{ matrix.os }}
           path: ${{ env.BINARY_PATH }}
           compression-level: 0
+          if-no-files-found: error
 
   release:
     needs: build
