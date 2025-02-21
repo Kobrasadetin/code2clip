@@ -1,0 +1,64 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger workflow when a tag like v1.0.0 is pushed
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+        shell: bash
+
+      - name: Build executable
+        run: |
+          pyinstaller --onefile --windowed code2clip.py
+        shell: bash
+
+      - name: Set Binary Path
+        id: set_binary
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            echo "BINARY_PATH=dist/code2clip.exe" >> $GITHUB_ENV
+          else
+            echo "BINARY_PATH=dist/code2clip" >> $GITHUB_ENV
+          fi
+        shell: bash
+
+      - name: Upload Binary
+        uses: actions/upload-artifact@v3
+        with:
+          name: Code2Clip-${{ matrix.os }}
+          path: ${{ env.BINARY_PATH }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: binaries
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: binaries/**
+          token: ${{ secrets.GITHUB_TOKEN }}
