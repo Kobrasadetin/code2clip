@@ -3,6 +3,7 @@ import os
 import platform
 import subprocess
 import re
+import ctypes
 from PyQt5.QtWidgets import (
     QApplication,
     QWidget,
@@ -220,6 +221,19 @@ class SettingsTab(QWidget):
         self.settings["use_dark_mode"] = state == Qt.Checked
         self.apply_dark_mode_callback()
 
+def enable_dark_title_bar(hwnd):
+    """Forces dark mode title bar if Windows 10+ is in dark mode."""
+    if platform.system() == "Windows":
+        try:
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20  # Windows 10 version 1809+
+            is_dark_mode = ctypes.c_int(1)  # 1 = Dark Mode ON
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                ctypes.byref(is_dark_mode), ctypes.sizeof(is_dark_mode)
+            )
+        except Exception as e:
+            print(f"Could not enable dark title bar: {e}", file=sys.stderr)
+
 class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -231,6 +245,10 @@ class MainWindow(QWidget):
             "use_dark_mode": False
         }
         self.init_ui()
+        # Apply dark title bar on Windows
+        if platform.system() == "Windows":
+            hwnd = self.winId().__int__()
+            enable_dark_title_bar(hwnd)
 
     def init_ui(self):
         layout = QVBoxLayout()
