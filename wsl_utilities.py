@@ -1,6 +1,7 @@
 import platform
 import subprocess
 import os
+import sys
 
 def get_default_wsl_distro():
     """Retrieve the default WSL2 distribution name and clean null bytes."""

@@ -5,7 +5,7 @@ from PyQt5.QtGui import QClipboard
 from PyQt5.QtWidgets import QApplication
 
 def concatenate_files(file_paths, root_path=None, prefix='<file filename="$filepath">', suffix='</file>',
-                      show_success_message=True, interpret_escape_sequences=False):
+                      show_success_message=True, interpret_escape_sequences=True):
     """
     Concatenates the contents of the given files, wrapping each in custom tags.
     Copies the final result to the clipboard.
