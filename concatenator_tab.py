@@ -17,6 +17,7 @@ class ConcatenatorTab(QWidget):
     def __init__(self, main_window):
         super().__init__()
         self.main_window = main_window  # To access settings from the MainWindow.
+        self.root_path = None
         self.init_ui()
         self.setAcceptDrops(True)  # Enable drag-and-drop on this widget.
         self.redraw()
@@ -24,7 +25,7 @@ class ConcatenatorTab(QWidget):
     def init_ui(self):
         layout = QVBoxLayout()
 
-        # Instruction label (used instead of a button).
+        # Instruction label
         self.instruction_label = QLabel("Drag and Drop Files Here")
         self.instruction_label.setStyleSheet("font-size: 16px;")
         layout.addWidget(self.instruction_label)
@@ -33,10 +34,14 @@ class ConcatenatorTab(QWidget):
         self.list_widget = FileListWidget()
         layout.addWidget(self.list_widget)
 
-        # Root path section.
+        # Root path section with clickable label
         root_layout = QHBoxLayout()
-        self.root_label = QLabel("Root Path: None")
-        root_layout.addWidget(self.root_label)
+        self.root_button = QPushButton("Root Path: None")
+        self.root_button.setFlat(True)
+        self.root_button.setStyleSheet("text-align: left;")
+        self.root_button.clicked.connect(self.select_root_path)
+        root_layout.addWidget(self.root_button)
+
         self.enable_root_checkbox = QCheckBox("Include path")
         self.enable_root_checkbox.stateChanged.connect(self.toggle_root_path)
         root_layout.addWidget(self.enable_root_checkbox)
@@ -72,7 +77,6 @@ class ConcatenatorTab(QWidget):
         layout.addWidget(self.concat_button)
 
         self.setLayout(layout)
-        self.root_path = None
 
     def redraw(self):
         """Redraw all dynamic UI elements based on the current theme."""
@@ -91,42 +95,47 @@ class ConcatenatorTab(QWidget):
 
     def dropEvent(self, event: QDropEvent):
         had_file = False
-        # Handle plain text drops.
+        # Text drops
         if event.mimeData().hasText():
-            filepaths = event.mimeData().text().strip().splitlines()
-            for filepath in filepaths:
-                filepath = filepath.strip()
-                filepath = convert_wsl_path(filepath)
-                if filepath and os.path.isfile(filepath):
-                    self.list_widget.add_file(filepath)
+            lines = event.mimeData().text().strip().splitlines()
+            for line in lines:
+                path = convert_wsl_path(line.strip())
+                if path and os.path.isfile(path):
+                    self.list_widget.add_file(path)
                     had_file = True
             event.acceptProposedAction()
-        # Handle URL drops.
+        # URL drops
         if not had_file and event.mimeData().hasUrls():
             for url in event.mimeData().urls():
-                filepath = url.toLocalFile()
-                filepath = convert_wsl_path(filepath)
-                if filepath and os.path.isfile(filepath):
-                    self.list_widget.add_file(filepath)
+                path = convert_wsl_path(url.toLocalFile())
+                if path and os.path.isfile(path):
+                    self.list_widget.add_file(path)
             event.acceptProposedAction()
         else:
             event.ignore()
 
+    def select_root_path(self):
+        """Open folder dialog for selecting root path."""
+        common_path = os.path.commonpath(self.list_widget.files) if self.list_widget.files else None
+        folder = QFileDialog.getExistingDirectory(self, "Select Root Directory", common_path or "")
+        if folder:
+            self.root_path = folder
+            self.enable_root_checkbox.setChecked(True)
+            self.list_widget.set_root_path(folder)
+            self.root_button.setText(f"Root Path: {folder}")
+
     def toggle_root_path(self):
-        from PyQt5.QtWidgets import QFileDialog
+        """Enable or disable root path display based on checkbox."""
         if self.enable_root_checkbox.isChecked():
-            common_path = os.path.commonpath(self.list_widget.files) if self.list_widget.files else None
-            folder = QFileDialog.getExistingDirectory(self, "Select Root Directory", common_path)
-            if folder:
-                self.root_path = folder
-                self.list_widget.set_root_path(folder)
-                self.root_label.setText(f"Root Path: {folder}")
+            # If no root selected yet, prompt
+            if not self.root_path:
+                self.select_root_path()
             else:
-                self.enable_root_checkbox.setChecked(False)
+                self.list_widget.set_root_path(self.root_path)
         else:
             self.root_path = None
             self.list_widget.disable_root_path()
-            self.root_label.setText("Root Path: None")
+            self.root_button.setText("Root Path: None")
 
     def change_preset(self, preset_name):
         if preset_name in PRESETS and preset_name != "Custom":
