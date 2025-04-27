@@ -62,12 +62,21 @@ class FileListWidget(QListWidget):
         file_paths = list(filter(None, text.split("\n")))
         not_found_files = []
         for file_path in file_paths:
+            original = file_path
             file_path = self.strip_quotes(file_path)
             file_path = convert_wsl_path(file_path)
+            # Check absolute path first
             if os.path.exists(file_path):
                 self.add_file(file_path)
+            # If not absolute and root_path is set, try relative to root_path
+            elif self.root_path:
+                candidate = os.path.join(self.root_path, file_path)
+                if os.path.exists(candidate):
+                    self.add_file(candidate)
+                else:
+                    not_found_files.append(original)
             else:
-                not_found_files.append(file_path)
+                not_found_files.append(original)
         if not_found_files:
             QMessageBox.warning(
                 self,
