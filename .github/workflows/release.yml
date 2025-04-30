@@ -72,6 +72,45 @@ jobs:
           path: ${{ env.BINARY_PATH }}
           compression-level: 0
           if-no-files-found: error
+  build-intel-macos:
+    runs-on: macos-13
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build Intel binary
+        run: |
+          pyinstaller --onefile --windowed code2clip.py
+
+      - name: Package Intel macOS app
+        run: |
+          APP_NAME=Code2Clip
+          APP_DIR=dist/$APP_NAME.app
+          mkdir -p "$APP_DIR/Contents/MacOS"
+          mkdir -p "$APP_DIR/Contents/Resources"
+          mv dist/code2clip "$APP_DIR/Contents/MacOS/code2clip"
+          chmod +x "$APP_DIR/Contents/MacOS/code2clip"
+          cp packaging/macos/Info.plist "$APP_DIR/Contents/Info.plist"
+          cd dist
+          zip -r Code2Clip-macos-intel.zip Code2Clip.app
+          cd ..
+          echo "BINARY_PATH=dist/Code2Clip-macos-intel.zip" >> $GITHUB_ENV
+
+      - name: Upload Intel macOS app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Code2Clip-macos-intel
+          path: ${{ env.BINARY_PATH }}
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
