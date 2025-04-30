@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - 'v*'        # Run on version tags
-  push:
     branches:
       - 'macos-build'        # Run on macos branch (for testing)
   workflow_dispatch: # Allow manual builds via GitHub UI (no release)
