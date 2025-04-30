@@ -3,7 +3,8 @@ name: Build & Release
 on:
   push:
     tags:
-      - 'v*'  # Trigger workflow when a tag like v1.0.0 is pushed
+      - 'v*'        # Run on version tags
+  workflow_dispatch: # Allow manual builds via GitHub UI (no release)
 
 jobs:
   build:
@@ -32,14 +33,51 @@ jobs:
           pyinstaller --onefile --windowed code2clip.py
         shell: bash
 
-      - name: Rename Binary for macOS & Linux
+      - name: Package for target OS
         run: |
           if [[ "$RUNNER_OS" == "macOS" ]]; then
-            mv dist/code2clip dist/code2clip-macos
-            echo "BINARY_PATH=dist/code2clip-macos" >> $GITHUB_ENV
+            APP_NAME=Code2Clip
+            APP_DIR=dist/$APP_NAME.app
+            ZIP_PATH=dist/$APP_NAME-macos.zip
+
+            mkdir -p "$APP_DIR/Contents/MacOS"
+            mkdir -p "$APP_DIR/Contents/Resources"
+
+            # Move the binary
+            mv dist/code2clip "$APP_DIR/Contents/MacOS/code2clip"
+            chmod +x "$APP_DIR/Contents/MacOS/code2clip"
+
+            # Create Info.plist
+            cat > "$APP_DIR/Contents/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>Code2Clip</string>
+  <key>CFBundleExecutable</key>
+  <string>code2clip</string>
+  <key>CFBundleIdentifier</key>
+  <string>fi.dynamint.code2clip</string>
+  <key>CFBundleVersion</key>
+  <string>1.0</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+</dict>
+</plist>
+EOF
+
+            # Zip the .app bundle for download
+            cd dist
+            zip -r Code2Clip-macos.zip Code2Clip.app
+            cd ..
+
+            echo "BINARY_PATH=dist/Code2Clip-macos.zip" >> $GITHUB_ENV
+
           elif [[ "$RUNNER_OS" == "Linux" ]]; then
             mv dist/code2clip dist/code2clip-linux
             echo "BINARY_PATH=dist/code2clip-linux" >> $GITHUB_ENV
+
           else
             echo "BINARY_PATH=dist/code2clip.exe" >> $GITHUB_ENV
           fi
@@ -54,6 +92,7 @@ jobs:
           if-no-files-found: error
 
   release:
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
     steps:
