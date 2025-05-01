@@ -26,7 +26,12 @@ jobs:
 
       - name: Set version and write version file
         run: |
-          echo "${{ github.ref_name }}" > code2clip_version.txt
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "${{ github.ref_name }}" > code2clip_version.txt
+          else
+            echo "${{ github.sha }}" | cut -c1-8 > code2clip_version.txt
+          fi
+        shell: bash
 
       - name: Install dependencies
         run: |
@@ -89,7 +94,12 @@ jobs:
 
       - name: Set version and write version file
         run: |
-          echo "${{ github.ref_name }}" > code2clip_version.txt
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "${{ github.ref_name }}" > code2clip_version.txt
+          else
+            echo "${{ github.sha }}" | cut -c1-8 > code2clip_version.txt
+          fi
+        shell: bash
 
       - name: Install dependencies
         run: |
