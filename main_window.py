@@ -4,8 +4,7 @@ import ctypes
 from PyQt5.QtWidgets import QMainWindow, QTabWidget, QVBoxLayout, QWidget, QApplication
 from PyQt5.QtGui import QPalette, QColor, QIcon
 from PyQt5.QtCore import QSettings, QSize
-from concatenator_tab import ConcatenatorTab
-from settings_tab import SettingsTab
+
 import os
 
 def enable_os_override_title_bar(hwnd):
@@ -26,6 +25,11 @@ def enable_os_override_title_bar(hwnd):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+
+        # Lazy-import tabs only when GUI is starting up
+        from concatenator_tab import ConcatenatorTab
+        from settings_tab import SettingsTab
+
         self.setWindowTitle("File Concatenator")
         self.resize(600, 400)
 

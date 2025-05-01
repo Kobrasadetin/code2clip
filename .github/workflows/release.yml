@@ -3,10 +3,10 @@ name: Build & Release
 on:
   push:
     tags:
-      - 'v*'        # Run on version tags
+      - 'v*'                # Run on version tags
     branches:
-      - 'macos-build'        # Run on macos branch (for testing)
-  workflow_dispatch: # Allow manual builds via GitHub UI (no release)
+      - 'github-actions'    # Run on github-actions branch (for testing)
+  workflow_dispatch:        # Allow manual builds via GitHub UI (no release)
 
 jobs:
   build:
@@ -32,7 +32,7 @@ jobs:
 
       - name: Build executable
         run: |
-          pyinstaller --onefile --windowed code2clip.py
+          pyinstaller --clean code2clip.spec
         shell: bash
 
       - name: Package for target OS
