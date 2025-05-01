@@ -1,22 +1,26 @@
-# -*- mode: python ; coding: utf-8 -*-
+# -*- mode: python -*-
+import sys
+from PyInstaller.utils.hooks import Tree
+from PyInstaller.building.build_main import Analysis, PYZ, EXE, COLLECT
 
 block_cipher = None
+
+# Collect everything under gui/ into a gui/ directory in the bundle
+datas = Tree('gui', prefix='gui')
 
 a = Analysis(
     ['code2clip.py'],
     pathex=[],
     binaries=[],
-    datas=[
-        ('gui/icon_32.png', 'gui'),
-        ('gui/icon_48.png', 'gui'),
-        ('gui/icon_256.png', 'gui'),
-        ('gui/splash.png')
-    ],
+    datas=datas,
     hiddenimports=[],
     hookspath=[],
-    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    cipher=block_cipher,
 )
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
 exe = EXE(
     pyz,
     a.scripts,
@@ -24,12 +28,12 @@ exe = EXE(
     exclude_binaries=True,
     name='code2clip',
     debug=False,
-    bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,
+    console=False,    # windowed GUI
     windowed=True,
 )
+
 coll = COLLECT(
     exe,
     a.binaries,

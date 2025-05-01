@@ -32,7 +32,7 @@ jobs:
 
       - name: Build executable
         run: |
-          pyinstaller --clean code2clip.spec
+          pyinstaller --clean --noconfirm code2clip.spec
         shell: bash
 
       - name: Package for target OS
@@ -90,7 +90,7 @@ jobs:
 
       - name: Build Intel binary
         run: |
-          pyinstaller --onefile --windowed code2clip.py
+          pyinstaller --clean --noconfirm code2clip.spec
 
       - name: Package Intel macOS app
         run: |
