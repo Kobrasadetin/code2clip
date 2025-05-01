@@ -3,10 +3,10 @@ name: Build & Release
 on:
   push:
     tags:
-      - 'v*'        # Run on version tags
+      - 'v*'                # Run on version tags
     branches:
-      - 'macos-build'        # Run on macos branch (for testing)
-  workflow_dispatch: # Allow manual builds via GitHub UI (no release)
+      - 'github-actions'    # Run on github-actions branch (for testing)
+  workflow_dispatch:        # Allow manual builds via GitHub UI (no release)
 
 jobs:
   build:
@@ -24,6 +24,15 @@ jobs:
         with:
           python-version: '3.9'
 
+      - name: Set version and write version file
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "${{ github.ref_name }}" > code2clip_version.txt
+          else
+            echo "${{ github.sha }}" | cut -c1-8 > code2clip_version.txt
+          fi
+        shell: bash
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -32,7 +41,7 @@ jobs:
 
       - name: Build executable
         run: |
-          pyinstaller --onefile --windowed code2clip.py
+          pyinstaller --clean --noconfirm code2clip.spec
         shell: bash
 
       - name: Package for target OS
@@ -83,6 +92,15 @@ jobs:
         with:
           python-version: '3.9'
 
+      - name: Set version and write version file
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "${{ github.ref_name }}" > code2clip_version.txt
+          else
+            echo "${{ github.sha }}" | cut -c1-8 > code2clip_version.txt
+          fi
+        shell: bash
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -90,7 +108,7 @@ jobs:
 
       - name: Build Intel binary
         run: |
-          pyinstaller --onefile --windowed code2clip.py
+          pyinstaller --clean --noconfirm code2clip.spec
 
       - name: Package Intel macOS app
         run: |

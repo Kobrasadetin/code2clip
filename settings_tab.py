@@ -1,5 +1,7 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QCheckBox
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QCheckBox, QLabel, QSpacerItem, QSizePolicy
 from PyQt5.QtCore import Qt
+
+from utils import get_app_version
 
 class SettingsTab(QWidget):
     def __init__(self, main_window):
@@ -8,28 +10,40 @@ class SettingsTab(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        layout = QVBoxLayout()
+        outer_layout = QVBoxLayout()
+        inner_layout = QVBoxLayout()
 
-        # Success message toggle.
+        # Toggles
         self.success_checkbox = QCheckBox("Show success message after concatenation")
         self.success_checkbox.setChecked(self.main_window.show_success_message)
         self.success_checkbox.stateChanged.connect(self.toggle_success_message)
-        layout.addWidget(self.success_checkbox)
+        inner_layout.addWidget(self.success_checkbox)
 
-        # Escape sequence interpretation toggle.
         self.escape_checkbox = QCheckBox("Interpret escape sequences (\\n, \\t, etc.)")
         self.escape_checkbox.setChecked(self.main_window.interpret_escape_sequences)
         self.escape_checkbox.stateChanged.connect(self.toggle_escape_sequences)
-        layout.addWidget(self.escape_checkbox)
+        inner_layout.addWidget(self.escape_checkbox)
 
-        # Dark mode toggle.
         self.dark_mode_checkbox = QCheckBox("Enable Dark Mode")
         self.dark_mode_checkbox.setChecked(self.main_window.use_dark_mode)
         self.dark_mode_checkbox.stateChanged.connect(self.toggle_dark_mode)
-        layout.addWidget(self.dark_mode_checkbox)
+        inner_layout.addWidget(self.dark_mode_checkbox)
 
-        layout.addStretch()
-        self.setLayout(layout)
+        # Add inner layout to a widget to control expansion
+        content_widget = QWidget()
+        content_widget.setLayout(inner_layout)
+        outer_layout.addWidget(content_widget)
+
+        # Stretch fills all available space
+        outer_layout.addStretch()
+
+        # Version label pinned to the very bottom
+        version_label = QLabel(f"Version: {get_app_version()}")
+        version_label.setStyleSheet("font-size: 14px; color: gray;")
+        version_label.setAlignment(Qt.AlignRight)
+        outer_layout.addWidget(version_label)
+
+        self.setLayout(outer_layout)
 
     def toggle_success_message(self, state):
         self.main_window.show_success_message = (state == Qt.Checked)
