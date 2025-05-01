@@ -26,8 +26,7 @@ jobs:
 
       - name: Set version and write version file
         run: |
-          VERSION=${GITHUB_REF##*/}
-          echo "$VERSION" > code2clip_version.txt
+          echo "${{ github.ref_name }}" > code2clip_version.txt
 
       - name: Install dependencies
         run: |
@@ -90,8 +89,7 @@ jobs:
 
       - name: Set version and write version file
         run: |
-          VERSION=${GITHUB_REF##*/}
-          echo "$VERSION" > code2clip_version.txt
+          echo "${{ github.ref_name }}" > code2clip_version.txt
 
       - name: Install dependencies
         run: |
