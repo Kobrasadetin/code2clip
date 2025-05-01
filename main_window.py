@@ -67,8 +67,6 @@ class MainWindow(QMainWindow):
 
         self.redraw()
 
-        self.show()
-
     def redraw(self):
         self.apply_dark_mode()
         """Redraw all dynamic UI elements if necessary."""

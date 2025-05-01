@@ -2,16 +2,9 @@ import sys
 import os
 from PyQt5.QtWidgets import QApplication, QSplashScreen
 from PyQt5.QtGui import QPixmap, QFont
+from PyQt5.QtCore import Qt, QTimer
 from main_window import MainWindow
-import time
-
-from utils import resource_path
-
-def get_app_version():
-    try:
-        return open("code2clip_version.txt").read().strip()
-    except:
-        return "Loading..."
+from utils import resource_path, get_app_version
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -19,14 +12,17 @@ if __name__ == "__main__":
 
     # Setup splash screen
     splash_pix = QPixmap(resource_path("gui/splash.png"))
-    splash = QSplashScreen(splash_pix)
+    splash = QSplashScreen(splash_pix, Qt.WindowStaysOnTopHint)
     splash.setFont(QFont("Arial", 10))
-    splash.showMessage(f"{get_app_version()}", alignment=0x84)  # Align bottom-center
+    splash.showMessage(f"{get_app_version()}", alignment=Qt.AlignBottom | Qt.AlignHCenter)
     splash.show()
     app.processEvents()
 
-    # Load main window
+    # Create the main window
     window = MainWindow()
 
-    splash.finish(window)
+    # show the window and finish splash
+    window.show()
+    QTimer.singleShot(200, lambda: splash.finish(window))
+
     sys.exit(app.exec_())

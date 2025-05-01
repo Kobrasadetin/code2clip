@@ -12,3 +12,9 @@ def resource_path(rel_path: str) -> str:
         # running in normal Python interpreter
         base = os.path.abspath(".")
     return os.path.join(base, rel_path)
+
+def get_app_version():
+    try:
+        return open(resource_path("code2clip_version.txt")).read().strip()
+    except:
+        return "Loading..."

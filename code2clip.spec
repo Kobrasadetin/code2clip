@@ -5,7 +5,7 @@ from PyInstaller.building.build_main import Analysis, PYZ, EXE
 
 block_cipher = None
 
-# ─── collect all gui/ files ────────────────────────────────────────────────────
+# ─── collect all files ────────────────────────────────────────────────────
 datas = []
 gui_dir = Path('gui')
 if gui_dir.is_dir():
@@ -15,7 +15,10 @@ if gui_dir.is_dir():
             rel_parent = src.relative_to(gui_dir).parent
             dest_dir = os.path.join('gui', str(rel_parent))
             datas.append((str(src), dest_dir))
-# ────────────────────────────────────────────────────────────────────────────────
+version_file = Path('code2clip_version.txt')
+if version_file.is_file():
+    datas.append((str(version_file), '.'))
+# ──────────────────────────────────────────────────────────────────────────
 
 a = Analysis(
     ['code2clip.py'],
