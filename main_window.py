@@ -7,6 +7,8 @@ from PyQt5.QtCore import QSettings, QSize
 
 import os
 
+from utils import resource_path
+
 def enable_os_override_title_bar(hwnd):
     """Force a dark title bar on Windows 10 (1809+) when dark mode is enabled."""
     if platform.system() == "Windows":
@@ -35,9 +37,9 @@ class MainWindow(QMainWindow):
 
          # Set window icon
         icon = QIcon()
-        icon.addFile(os.path.join("gui", "icon_32.png"), QSize(32, 32))
-        icon.addFile(os.path.join("gui", "icon_48.png"), QSize(48, 48))
-        icon.addFile(os.path.join("gui", "icon_256.png"), QSize(256, 256))
+        icon.addFile(resource_path("gui/icon_32.png"), QSize(32, 32))
+        icon.addFile(resource_path("gui/icon_48.png"), QSize(48, 48))
+        icon.addFile(resource_path("gui/icon_256.png"), QSize(256, 256))
         self.setWindowIcon(icon)
 
         # Load persistent settings via QSettings.
