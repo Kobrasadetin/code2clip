@@ -1,16 +1,24 @@
 # -*- mode: python -*-
 import sys
-from PyInstaller.utils.hooks import Tree
+from pathlib import Path
 from PyInstaller.building.build_main import Analysis, PYZ, EXE, COLLECT
 
 block_cipher = None
 
-# Collect everything under gui/ into a gui/ directory in the bundle
-datas = Tree('gui', prefix='gui')
+# ─── Collect all files under gui/ ──────────────────────────────────────────────
+datas = []
+gui_dir = Path(__file__).parent / 'gui'
+for src in gui_dir.rglob('*'):
+    if src.is_file():
+        # dest_dir inside the bundle will be 'gui/' plus any subfolder
+        rel = src.relative_to(gui_dir)
+        dest = Path('gui') / rel.parent
+        datas.append(( str(src), str(dest) ))
+# ────────────────────────────────────────────────────────────────────────────────
 
 a = Analysis(
     ['code2clip.py'],
-    pathex=[],
+    pathex=[str(Path(__file__).parent)],
     binaries=[],
     datas=datas,
     hiddenimports=[],
@@ -30,7 +38,7 @@ exe = EXE(
     debug=False,
     strip=False,
     upx=True,
-    console=False,    # windowed GUI
+    console=False,      # GUI app
     windowed=True,
 )
 
