@@ -43,6 +43,8 @@ class ConcatenateFilesTest(unittest.TestCase):
         global concatenate_files
         from file_concatenator import concatenate_files  # noqa: E402
         self.concatenate_files = concatenate_files
+        qtwidgets.QMessageBox.warning.reset_mock()
+        DummyQApplication._clipboard.text = ""
 
     def tearDown(self):
         self.modules_patcher.stop()
@@ -70,6 +72,45 @@ class ConcatenateFilesTest(unittest.TestCase):
             self.assertNotIn('file1.txt/file1.txt', clip_text)
             self.assertNotIn('file2.txt/file2.txt', clip_text)
 
+
+    def test_relpath_error_falls_back_to_absolute(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file1 = os.path.join(tmpdir, 'file1.txt')
+            with open(file1, 'w') as f:
+                f.write('one')
+
+            prefix = "<file path='$filepath'>"
+            suffix = "</file>"
+
+            with patch('os.path.relpath', side_effect=ValueError):
+                self.concatenate_files([file1], root_path=tmpdir,
+                                       prefix=prefix, suffix=suffix,
+                                       show_success_message=False)
+
+            clip_text = DummyQApplication._clipboard.text
+            self.assertIn(file1, clip_text)
+            qtwidgets.QMessageBox.warning.assert_called_once()
+
+    def test_multiple_relpath_errors_warn_once(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file1 = os.path.join(tmpdir, 'file1.txt')
+            file2 = os.path.join(tmpdir, 'file2.txt')
+            with open(file1, 'w') as f:
+                f.write('one')
+            with open(file2, 'w') as f:
+                f.write('two')
+
+            prefix = "<file path='$filepath'>"
+            suffix = "</file>"
+
+            qtwidgets.QMessageBox.warning.reset_mock()
+            with patch('os.path.relpath', side_effect=ValueError):
+                self.concatenate_files([file1, file2], root_path=tmpdir,
+                                       prefix=prefix, suffix=suffix,
+                                       show_success_message=False)
+
+        self.assertEqual(qtwidgets.QMessageBox.warning.call_count, 1)
+        
     def test_spaces_in_root_path(self):
         with tempfile.TemporaryDirectory(prefix="space path ") as tmpdir:
             file1 = os.path.join(tmpdir, 'file1.txt')
@@ -92,6 +133,24 @@ class ConcatenateFilesTest(unittest.TestCase):
             self.assertIn(os.path.join('sub dir', 'file2.txt'), clip_text)
             self.assertNotIn('file1.txt/file1.txt', clip_text)
             self.assertNotIn('file2.txt/file2.txt', clip_text)
+
+    def test_safe_relpath_no_root_no_warning(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file1 = os.path.join(tmpdir, 'file1.txt')
+            with open(file1, 'w') as f:
+                f.write('one')
+
+            prefix = "<file path='$filepath'>"
+            suffix = "</file>"
+
+            qtwidgets.QMessageBox.warning.reset_mock()
+            self.concatenate_files([file1], root_path=None,
+                                   prefix=prefix, suffix=suffix,
+                                   show_success_message=False)
+
+            clip_text = DummyQApplication._clipboard.text
+            self.assertIn("file1.txt", clip_text)
+            qtwidgets.QMessageBox.warning.assert_not_called()
 
 if __name__ == '__main__':
     unittest.main()

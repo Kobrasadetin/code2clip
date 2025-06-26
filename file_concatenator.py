@@ -3,6 +3,7 @@ import chardet
 from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtGui import QClipboard
 from PyQt5.QtWidgets import QApplication
+from utils import safe_relpath
 
 def concatenate_files(file_paths, root_path=None, prefix='<file filename="$filepath">', suffix='</file>',
                       show_success_message=True, interpret_escape_sequences=True):
@@ -31,19 +32,13 @@ def concatenate_files(file_paths, root_path=None, prefix='<file filename="$filep
             return
 
     concatenated_text = ""
+    warnings: list[str] = []
 
     for filepath in file_paths:
-        # Calculate relative path based on root_path
-        if root_path:
-            relative_dir = os.path.relpath(os.path.dirname(filepath), root_path)
-            filename = os.path.basename(filepath)
-            if relative_dir == ".":
-                filepath_string = filename
-            else:
-                filepath_string = os.path.join(relative_dir, filename)
-        else:
-            filename = os.path.basename(filepath)
-            filepath_string = filename
+        # Determine display path for $filepath substitution
+        filepath_string, warn_msg = safe_relpath(filepath, root_path)
+        if warn_msg:
+            warnings.append(warn_msg)
 
         # Replace $filepath in the prefix
         file_prefix = prefix.replace("$filepath", filepath_string)
@@ -76,6 +71,9 @@ def concatenate_files(file_paths, root_path=None, prefix='<file filename="$filep
     # Copy to clipboard
     clipboard: QClipboard = QApplication.clipboard()
     clipboard.setText(concatenated_text)
+
+    if warnings:
+        QMessageBox.warning(None, "Path Error", "\n".join(sorted(set(warnings))))
 
     if show_success_message:
         QMessageBox.information(None, "Success", "Concatenated text copied to clipboard.")
