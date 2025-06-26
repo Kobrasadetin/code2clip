@@ -132,7 +132,8 @@ class ConcatenatorTab(QWidget):
             event.ignore()
 
     def dropEvent(self, event: QDropEvent):
-        had_file = False
+        """Handle drag and drop of files or text paths."""
+        added = False
         # Text drops
         if event.mimeData().hasText():
             lines = event.mimeData().text().strip().splitlines()
@@ -140,14 +141,16 @@ class ConcatenatorTab(QWidget):
                 path = convert_wsl_path(line.strip())
                 if path and os.path.isfile(path):
                     self.list_widget.add_file(path)
-                    had_file = True
-            event.acceptProposedAction()
-        # URL drops
-        if not had_file and event.mimeData().hasUrls():
+                    added = True
+        # URL drops (some platforms provide both text and url data)
+        if not added and event.mimeData().hasUrls():
             for url in event.mimeData().urls():
                 path = convert_wsl_path(url.toLocalFile())
                 if path and os.path.isfile(path):
                     self.list_widget.add_file(path)
+                    added = True
+
+        if added:
             event.acceptProposedAction()
         else:
             event.ignore()

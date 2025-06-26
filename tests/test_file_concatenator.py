@@ -72,6 +72,7 @@ class ConcatenateFilesTest(unittest.TestCase):
             self.assertNotIn('file1.txt/file1.txt', clip_text)
             self.assertNotIn('file2.txt/file2.txt', clip_text)
 
+
     def test_relpath_error_falls_back_to_absolute(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             file1 = os.path.join(tmpdir, 'file1.txt')
@@ -109,6 +110,22 @@ class ConcatenateFilesTest(unittest.TestCase):
                                        show_success_message=False)
 
         self.assertEqual(qtwidgets.QMessageBox.warning.call_count, 1)
+        
+    def test_spaces_in_root_path(self):
+        with tempfile.TemporaryDirectory(prefix="space path ") as tmpdir:
+            file1 = os.path.join(tmpdir, 'file1.txt')
+            subdir = os.path.join(tmpdir, 'sub dir')
+            os.makedirs(subdir)
+            file2 = os.path.join(subdir, 'file2.txt')
+
+            self.concatenate_files([file1, file2], root_path=tmpdir,
+                       prefix=prefix, suffix=suffix,
+                       show_success_message=False)
+            clip_text = DummyQApplication._clipboard.text
+            self.assertIn("<file path='file1.txt'>", clip_text)
+            self.assertIn(os.path.join('sub dir', 'file2.txt'), clip_text)
+            self.assertNotIn('file1.txt/file1.txt', clip_text)
+            self.assertNotIn('file2.txt/file2.txt', clip_text)
 
     def test_safe_relpath_no_root_no_warning(self):
         with tempfile.TemporaryDirectory() as tmpdir:
