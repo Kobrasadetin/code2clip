@@ -11,6 +11,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QClipboard
 from PyQt5.QtCore import QDateTime, Qt
 from wsl_utilities import convert_wsl_path
+from utils import safe_relpath
 
 class FileListWidget(QListWidget):
     def __init__(self, parent=None):
@@ -177,11 +178,17 @@ class FileListWidget(QListWidget):
 
     def update_list_display(self):
         self.clear()
+        warnings: list[str] = []
         for filepath in self.files:
-            relative_path = os.path.relpath(filepath, self.root_path) if self.root_path else os.path.basename(filepath)
-            item = QListWidgetItem(relative_path)
+            display_path, warn_msg = safe_relpath(filepath, self.root_path)
+            if warn_msg:
+                warnings.append(warn_msg)
+                display_path = f"{display_path} [abs]"
+            item = QListWidgetItem(display_path)
             item.setData(Qt.UserRole, filepath)  # Store full path
             self.addItem(item)
+        if warnings:
+            QMessageBox.warning(self, "Path Error", "\n".join(sorted(set(warnings))))
 
     def dropEvent(self, event):
         super().dropEvent(event)
