@@ -108,7 +108,25 @@ class ConcatenateFilesTest(unittest.TestCase):
                                        prefix=prefix, suffix=suffix,
                                        show_success_message=False)
 
-            self.assertEqual(qtwidgets.QMessageBox.warning.call_count, 1)
+        self.assertEqual(qtwidgets.QMessageBox.warning.call_count, 1)
+
+    def test_safe_relpath_no_root_no_warning(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file1 = os.path.join(tmpdir, 'file1.txt')
+            with open(file1, 'w') as f:
+                f.write('one')
+
+            prefix = "<file path='$filepath'>"
+            suffix = "</file>"
+
+            qtwidgets.QMessageBox.warning.reset_mock()
+            self.concatenate_files([file1], root_path=None,
+                                   prefix=prefix, suffix=suffix,
+                                   show_success_message=False)
+
+            clip_text = DummyQApplication._clipboard.text
+            self.assertIn("file1.txt", clip_text)
+            qtwidgets.QMessageBox.warning.assert_not_called()
 
 if __name__ == '__main__':
     unittest.main()
