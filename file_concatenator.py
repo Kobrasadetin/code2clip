@@ -34,11 +34,16 @@ def concatenate_files(file_paths, root_path=None, prefix='<file filename="$filep
 
     for filepath in file_paths:
         # Calculate relative path based on root_path
-        relative_path = os.path.relpath(filepath, root_path) if root_path else ""
-        filename = os.path.basename(filepath)
-
-        # Determine the value of $filepath
-        filepath_string = os.path.join(relative_path, filename) if relative_path else filename
+        if root_path:
+            relative_dir = os.path.relpath(os.path.dirname(filepath), root_path)
+            filename = os.path.basename(filepath)
+            if relative_dir == ".":
+                filepath_string = filename
+            else:
+                filepath_string = os.path.join(relative_dir, filename)
+        else:
+            filename = os.path.basename(filepath)
+            filepath_string = filename
 
         # Replace $filepath in the prefix
         file_prefix = prefix.replace("$filepath", filepath_string)
