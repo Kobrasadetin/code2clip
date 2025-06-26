@@ -117,10 +117,17 @@ class ConcatenateFilesTest(unittest.TestCase):
             subdir = os.path.join(tmpdir, 'sub dir')
             os.makedirs(subdir)
             file2 = os.path.join(subdir, 'file2.txt')
+            with open(file1, 'w') as f:
+                f.write('one')
+            with open(file2, 'w') as f:
+                f.write('two')
+
+            prefix = "<file path='$filepath'>"
+            suffix = "</file>"
 
             self.concatenate_files([file1, file2], root_path=tmpdir,
-                       prefix=prefix, suffix=suffix,
-                       show_success_message=False)
+                                   prefix=prefix, suffix=suffix,
+                                   show_success_message=False)
             clip_text = DummyQApplication._clipboard.text
             self.assertIn("<file path='file1.txt'>", clip_text)
             self.assertIn(os.path.join('sub dir', 'file2.txt'), clip_text)
