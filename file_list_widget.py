@@ -53,7 +53,11 @@ class FileListWidget(QListWidget):
             if action == add_action:
                 self.add_clipboard_files()
             elif action == add_folder_action:
-                self.add_folder()
+                self.add_folder(folder_path = QFileDialog.getExistingDirectory(
+                    self,
+                    "Select Folder",
+                    options=QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
+                ))
             elif action == remove_all_action:
                 self.remove_all()
 
@@ -86,19 +90,50 @@ class FileListWidget(QListWidget):
                 "The following files were not found:\n" + "\n".join(not_found_files),
             )
 
-    def add_folder(self):
-        folder_path = QFileDialog.getExistingDirectory(
-            self,
-            "Select Folder",
-            options=QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
-        )
+    def add_folder(self, folder_path=None):
         if folder_path:
             files = list_files(
                 folder_path,
                 self.main_window.extension_filters if self.main_window else None,
             )
-            for file_path in files:
-                self.add_file(file_path)
+            allowed_files = [f for f in files if self.is_allowed(f)]
+            if allowed_files:
+                for file_path in files:
+                    self.add_file(file_path)
+            else:
+                all_files = list_files(folder_path, None)
+                if not all_files:
+                    QMessageBox.information(
+                        self,
+                        "No Files Added",
+                        "The selected folder contains no files.",
+                    )
+                    return
+                ext_set = {os.path.splitext(f)[1].lower() for f in all_files}
+                from extension_filters import EXTENSION_GROUP_DEFAULTS
+
+                category_counts: dict[str, int] = {}
+                for ext in ext_set:
+                    for cat, items in EXTENSION_GROUP_DEFAULTS.items():
+                        if ext in items:
+                            category_counts[cat] = category_counts.get(cat, 0) + 1
+
+                if not category_counts:
+                    suggested = "Code Files"
+                elif len(category_counts) == 1:
+                    suggested = next(iter(category_counts))
+                else:
+                    suggested = (
+                        "Code Files" if "Code Files" in category_counts else max(category_counts, key=category_counts.get)
+                    )
+
+                suggested_exts = ", ".join(sorted(ext_set))
+                QMessageBox.information(
+                    self,
+                    "No Files Added",
+                    f"No approved files were found. The folder contains: {suggested_exts}.\n"
+                    f"Consider enabling the '{suggested}' category.",
+                )
 
     def strip_quotes(self, text):
         if text.startswith('"') and text.endswith('"'):
@@ -174,9 +209,11 @@ class FileListWidget(QListWidget):
     def is_allowed(self, filepath: str) -> bool:
         if not self.main_window:
             return True
+        if self.main_window.extension_allow_all:
+            return True
         extensions = self.main_window.extension_filters
         if not extensions:
-            return True
+            return False
         return os.path.splitext(filepath)[1].lower() in extensions
 
     def set_root_path(self, root_path):

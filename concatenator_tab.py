@@ -134,6 +134,7 @@ class ConcatenatorTab(QWidget):
 
     def dropEvent(self, event: QDropEvent):
         """Handle drag and drop of files or text paths."""
+        print("Drop event triggered")
         added = False
         # Text drops
         if event.mimeData().hasText():
@@ -145,9 +146,8 @@ class ConcatenatorTab(QWidget):
                         self.list_widget.add_file(path)
                         added = True
                     elif os.path.isdir(path):
-                        for f in list_files(path, self.main_window.extension_filters):
-                            self.list_widget.add_file(f)
-                            added = True
+                        self.list_widget.add_folder(path)
+                        added = True
         # URL drops (some platforms provide both text and url data)
         if not added and event.mimeData().hasUrls():
             for url in event.mimeData().urls():
@@ -157,9 +157,8 @@ class ConcatenatorTab(QWidget):
                         self.list_widget.add_file(path)
                         added = True
                     elif os.path.isdir(path):
-                        for f in list_files(path, self.main_window.extension_filters):
-                            self.list_widget.add_file(f)
-                            added = True
+                        self.list_widget.add_folder(path)
+                        added = True
 
         if added:
             event.acceptProposedAction()
