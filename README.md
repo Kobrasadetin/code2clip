@@ -72,7 +72,7 @@ This text is **automatically copied** to your clipboard.
 
 ---
 
-## Mac OS binaries (release)
+## MacOS binaries (release)
 
 To run the `.app` downloaded from a GitHub release:
 
