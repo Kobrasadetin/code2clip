@@ -101,8 +101,10 @@ class SettingsTab(QWidget):
         self.main_window.set_extension_allow_all(allow)
         for box in self.category_boxes.values():
             box.setEnabled(not allow)
+            box.setHidden(allow)
         for field in self.extension_fields.values():
             field.setEnabled(not allow)
+            field.setHidden(allow)
 
     def on_categories_changed(self, _state):
         categories = [n for n, b in self.category_boxes.items() if b.isChecked()]

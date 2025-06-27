@@ -53,7 +53,11 @@ class FileListWidget(QListWidget):
             if action == add_action:
                 self.add_clipboard_files()
             elif action == add_folder_action:
-                self.add_folder()
+                self.add_folder(folder_path = QFileDialog.getExistingDirectory(
+                    self,
+                    "Select Folder",
+                    options=QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
+                ))
             elif action == remove_all_action:
                 self.remove_all()
 
@@ -86,18 +90,14 @@ class FileListWidget(QListWidget):
                 "The following files were not found:\n" + "\n".join(not_found_files),
             )
 
-    def add_folder(self):
-        folder_path = QFileDialog.getExistingDirectory(
-            self,
-            "Select Folder",
-            options=QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
-        )
+    def add_folder(self, folder_path=None):
         if folder_path:
             files = list_files(
                 folder_path,
                 self.main_window.extension_filters if self.main_window else None,
             )
-            if files:
+            allowed_files = [f for f in files if self.is_allowed(f)]
+            if allowed_files:
                 for file_path in files:
                     self.add_file(file_path)
             else:
