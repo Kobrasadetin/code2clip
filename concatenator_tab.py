@@ -4,6 +4,7 @@ from PyQt5.QtGui import QDragEnterEvent, QDropEvent
 from PyQt5.QtCore import Qt
 from file_list_widget import FileListWidget
 from file_concatenator import concatenate_files
+from utils import list_files
 from wsl_utilities import convert_wsl_path
 
 # Preset definitions for prefix and suffix.
@@ -34,7 +35,7 @@ class ConcatenatorTab(QWidget):
         layout.addWidget(self.instruction_label)
 
         # File list
-        self.list_widget = FileListWidget()
+        self.list_widget = FileListWidget(self.main_window)
         layout.addWidget(self.list_widget)
 
         # Root path section with clickable label
@@ -139,16 +140,26 @@ class ConcatenatorTab(QWidget):
             lines = event.mimeData().text().strip().splitlines()
             for line in lines:
                 path = convert_wsl_path(line.strip())
-                if path and os.path.isfile(path):
-                    self.list_widget.add_file(path)
-                    added = True
+                if path:
+                    if os.path.isfile(path):
+                        self.list_widget.add_file(path)
+                        added = True
+                    elif os.path.isdir(path):
+                        for f in list_files(path, self.main_window.extension_filters):
+                            self.list_widget.add_file(f)
+                            added = True
         # URL drops (some platforms provide both text and url data)
         if not added and event.mimeData().hasUrls():
             for url in event.mimeData().urls():
                 path = convert_wsl_path(url.toLocalFile())
-                if path and os.path.isfile(path):
-                    self.list_widget.add_file(path)
-                    added = True
+                if path:
+                    if os.path.isfile(path):
+                        self.list_widget.add_file(path)
+                        added = True
+                    elif os.path.isdir(path):
+                        for f in list_files(path, self.main_window.extension_filters):
+                            self.list_widget.add_file(f)
+                            added = True
 
         if added:
             event.acceptProposedAction()

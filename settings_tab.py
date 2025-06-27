@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QCheckBox, QLabel, QSpacerItem, QSizePolicy
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QCheckBox, QLabel, QSpacerItem, QSizePolicy, QLineEdit
 from PyQt5.QtCore import Qt
 
 from utils import get_app_version
@@ -28,6 +28,15 @@ class SettingsTab(QWidget):
         self.dark_mode_checkbox.setChecked(self.main_window.use_dark_mode)
         self.dark_mode_checkbox.stateChanged.connect(self.toggle_dark_mode)
         inner_layout.addWidget(self.dark_mode_checkbox)
+
+        # Extension filters
+        ext_label = QLabel("Allowed Extensions (comma separated):")
+        inner_layout.addWidget(ext_label)
+        self.extensions_input = QLineEdit(
+            ", ".join(self.main_window.extension_filters)
+        )
+        self.extensions_input.editingFinished.connect(self.update_extensions)
+        inner_layout.addWidget(self.extensions_input)
 
         # Add inner layout to a widget to control expansion
         content_widget = QWidget()
@@ -59,7 +68,12 @@ class SettingsTab(QWidget):
         self.main_window.apply_dark_mode()
         self.main_window.redraw()
 
+    def update_extensions(self):
+        text = self.extensions_input.text()
+        self.main_window.set_extension_filters(text)
+
     def redraw(self):
         """Redraw all dynamic UI elements if necessary."""
         # For now, if there are labels or other elements needing theme updates, do it here.
         pass
+

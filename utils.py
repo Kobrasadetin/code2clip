@@ -39,3 +39,17 @@ def safe_relpath(path: str, start: str | None) -> tuple[str, str | None]:
             "Displaying the absolute path instead."
         )
         return path, msg
+
+def list_files(directory: str, extensions: list[str] | None = None) -> list[str]:
+    """Return a list of files under ``directory`` filtered by extensions."""
+    selected: list[str] = []
+    normalized = [ext.lower() for ext in extensions] if extensions else None
+    for root, _, files in os.walk(directory):
+        for name in files:
+            if normalized:
+                ext = os.path.splitext(name)[1].lower()
+                if ext not in normalized:
+                    continue
+            selected.append(os.path.join(root, name))
+    return selected
+

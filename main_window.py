@@ -47,6 +47,8 @@ class MainWindow(QMainWindow):
         self.use_dark_mode = self.settings.value("use_dark_mode", False, type=bool)
         self.show_success_message = self.settings.value("show_success_message", True, type=bool)
         self.interpret_escape_sequences = self.settings.value("interpret_escape_sequences", True, type=bool)
+        self.extension_filter_string = self.settings.value("extension_filter", ".txt,.md,.py", type=str)
+        self.extension_filters = self.parse_extensions(self.extension_filter_string)
 
         # Create the central widget with a tab widget.
         main_widget = QWidget()
@@ -66,6 +68,18 @@ class MainWindow(QMainWindow):
             enable_os_override_title_bar(hwnd)
 
         self.redraw()
+
+    @staticmethod
+    def parse_extensions(text: str) -> list[str]:
+        exts = []
+        for ext in text.split(','):
+            ext = ext.strip().lower()
+            if not ext:
+                continue
+            if not ext.startswith('.'):
+                ext = '.' + ext
+            exts.append(ext)
+        return exts
 
     def redraw(self):
         self.apply_dark_mode()
@@ -100,4 +114,10 @@ class MainWindow(QMainWindow):
         self.settings.setValue("use_dark_mode", self.use_dark_mode)
         self.settings.setValue("show_success_message", self.show_success_message)
         self.settings.setValue("interpret_escape_sequences", self.interpret_escape_sequences)
+        self.settings.setValue("extension_filter", self.extension_filter_string)
         self.redraw()
+
+    def set_extension_filters(self, text: str):
+        self.extension_filter_string = text
+        self.extension_filters = self.parse_extensions(text)
+        self.save_settings()
