@@ -29,5 +29,22 @@ class EscapeSequenceTest(unittest.TestCase):
             self.assertIn('start\n'.encode('utf-8').decode('unicode_escape'), text)
             self.assertIn('end\t'.encode('utf-8').decode('unicode_escape'), text)
 
+    def test_non_ascii_prefix_preserved_with_escape_sequences(self):
+        """Ensure non-ASCII chars survive when escape sequences are interpreted."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, 'a.txt')
+            with open(path, 'w') as f:
+                f.write('data')
+            prefix = 'äß\n'
+            self.concatenate_files(
+                [path],
+                prefix=prefix,
+                suffix='',
+                show_success_message=False,
+                interpret_escape_sequences=True,
+            )
+            text = DummyQApplication._clipboard.text
+            self.assertTrue(text.startswith('äß\n'))
+
 if __name__ == '__main__':
     unittest.main()
