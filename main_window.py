@@ -5,6 +5,14 @@ from PyQt5.QtWidgets import QMainWindow, QTabWidget, QVBoxLayout, QWidget, QAppl
 from PyQt5.QtGui import QPalette, QColor, QIcon
 from PyQt5.QtCore import QSettings, QSize
 
+from extension_filters import (
+    EXTENSION_GROUP_DEFAULTS,
+    DEFAULT_EXTENSION_CATEGORIES,
+    parse_categories,
+    parse_extensions,
+    build_extension_filters,
+)
+
 import os
 
 from utils import resource_path
@@ -47,6 +55,25 @@ class MainWindow(QMainWindow):
         self.use_dark_mode = self.settings.value("use_dark_mode", False, type=bool)
         self.show_success_message = self.settings.value("show_success_message", True, type=bool)
         self.interpret_escape_sequences = self.settings.value("interpret_escape_sequences", True, type=bool)
+        self.extension_allow_all = self.settings.value(
+            "extension_allow_all", False, type=bool
+        )
+        cat_default = ",".join(DEFAULT_EXTENSION_CATEGORIES)
+        cat_text = self.settings.value("extension_categories", cat_default, type=str)
+        self.extension_categories = parse_categories(cat_text)
+
+        self.extension_group_texts: dict[str, str] = {}
+        self.extension_groups: dict[str, list[str]] = {}
+        for name, default_list in EXTENSION_GROUP_DEFAULTS.items():
+            key = f"extensions_{name.replace(' ', '_').lower()}"
+            default_text = ",".join(default_list)
+            text = self.settings.value(key, default_text, type=str)
+            self.extension_group_texts[name] = text
+            self.extension_groups[name] = parse_extensions(text)
+
+        self.extension_filters = build_extension_filters(
+            self.extension_categories, self.extension_allow_all, self.extension_groups
+        )
 
         # Create the central widget with a tab widget.
         main_widget = QWidget()
@@ -66,6 +93,7 @@ class MainWindow(QMainWindow):
             enable_os_override_title_bar(hwnd)
 
         self.redraw()
+
 
     def redraw(self):
         self.apply_dark_mode()
@@ -100,4 +128,57 @@ class MainWindow(QMainWindow):
         self.settings.setValue("use_dark_mode", self.use_dark_mode)
         self.settings.setValue("show_success_message", self.show_success_message)
         self.settings.setValue("interpret_escape_sequences", self.interpret_escape_sequences)
+        self.settings.setValue(
+            "extension_allow_all", self.extension_allow_all
+        )
+        self.settings.setValue(
+            "extension_categories", ",".join(self.extension_categories)
+        )
+        for name, text in self.extension_group_texts.items():
+            key = f"extensions_{name.replace(' ', '_').lower()}"
+            self.settings.setValue(key, text)
         self.redraw()
+
+    def set_extension_allow_all(self, state: bool):
+        self.extension_allow_all = state
+        self.extension_filters = build_extension_filters(
+            self.extension_categories,
+            self.extension_allow_all,
+            self.extension_groups,
+        )
+        self.save_settings()
+
+    def set_extension_categories(self, categories: list[str]):
+        self.extension_categories = categories
+        self.extension_filters = build_extension_filters(
+            self.extension_categories,
+            self.extension_allow_all,
+            self.extension_groups,
+        )
+        self.save_settings()
+
+    def set_extension_group_text(self, name: str, text: str):
+        self.extension_group_texts[name] = text
+        self.extension_groups[name] = parse_extensions(text)
+        self.extension_filters = build_extension_filters(
+            self.extension_categories,
+            self.extension_allow_all,
+            self.extension_groups,
+        )
+        self.save_settings()
+
+    def reset_extension_settings(self):
+        self.extension_categories = list(DEFAULT_EXTENSION_CATEGORIES)
+        self.extension_allow_all = False
+        self.extension_group_texts = {
+            name: ",".join(vals) for name, vals in EXTENSION_GROUP_DEFAULTS.items()
+        }
+        self.extension_groups = {
+            name: list(vals) for name, vals in EXTENSION_GROUP_DEFAULTS.items()
+        }
+        self.extension_filters = build_extension_filters(
+            self.extension_categories,
+            self.extension_allow_all,
+            self.extension_groups,
+        )
+        self.save_settings()

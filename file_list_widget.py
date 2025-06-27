@@ -11,11 +11,12 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QClipboard
 from PyQt5.QtCore import QDateTime, Qt
 from wsl_utilities import convert_wsl_path
-from utils import safe_relpath
+from utils import safe_relpath, list_files
 
 class FileListWidget(QListWidget):
-    def __init__(self, parent=None):
+    def __init__(self, main_window=None, parent=None):
         super().__init__(parent)
+        self.main_window = main_window
         # Enable drag and drop reordering within the list
         self.setAcceptDrops(True)
         self.setDragEnabled(True)
@@ -92,10 +93,12 @@ class FileListWidget(QListWidget):
             options=QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
         )
         if folder_path:
-            for root, _, files in os.walk(folder_path):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    self.add_file(file_path)
+            files = list_files(
+                folder_path,
+                self.main_window.extension_filters if self.main_window else None,
+            )
+            for file_path in files:
+                self.add_file(file_path)
 
     def strip_quotes(self, text):
         if text.startswith('"') and text.endswith('"'):
@@ -164,9 +167,17 @@ class FileListWidget(QListWidget):
             )
 
     def add_file(self, filepath):
-        if filepath not in self.files:
+        if filepath not in self.files and self.is_allowed(filepath):
             self.files.append(filepath)
             self.update_list_display()
+
+    def is_allowed(self, filepath: str) -> bool:
+        if not self.main_window:
+            return True
+        extensions = self.main_window.extension_filters
+        if not extensions:
+            return True
+        return os.path.splitext(filepath)[1].lower() in extensions
 
     def set_root_path(self, root_path):
         self.root_path = root_path
