@@ -5,6 +5,13 @@ from PyQt5.QtWidgets import QMainWindow, QTabWidget, QVBoxLayout, QWidget, QAppl
 from PyQt5.QtGui import QPalette, QColor, QIcon
 from PyQt5.QtCore import QSettings, QSize
 
+from extension_filters import (
+    EXTENSION_GROUPS,
+    DEFAULT_EXTENSION_CATEGORIES,
+    parse_categories,
+    build_extension_filters,
+)
+
 import os
 
 from utils import resource_path
@@ -47,8 +54,17 @@ class MainWindow(QMainWindow):
         self.use_dark_mode = self.settings.value("use_dark_mode", False, type=bool)
         self.show_success_message = self.settings.value("show_success_message", True, type=bool)
         self.interpret_escape_sequences = self.settings.value("interpret_escape_sequences", True, type=bool)
-        self.extension_filter_string = self.settings.value("extension_filter", ".txt,.md,.py", type=str)
-        self.extension_filters = self.parse_extensions(self.extension_filter_string)
+        self.extension_allow_all = self.settings.value(
+            "extension_allow_all", False, type=bool
+        )
+        cat_default = ",".join(DEFAULT_EXTENSION_CATEGORIES)
+        cat_text = self.settings.value(
+            "extension_categories", cat_default, type=str
+        )
+        self.extension_categories = parse_categories(cat_text)
+        self.extension_filters = build_extension_filters(
+            self.extension_categories, self.extension_allow_all
+        )
 
         # Create the central widget with a tab widget.
         main_widget = QWidget()
@@ -69,17 +85,6 @@ class MainWindow(QMainWindow):
 
         self.redraw()
 
-    @staticmethod
-    def parse_extensions(text: str) -> list[str]:
-        exts = []
-        for ext in text.split(','):
-            ext = ext.strip().lower()
-            if not ext:
-                continue
-            if not ext.startswith('.'):
-                ext = '.' + ext
-            exts.append(ext)
-        return exts
 
     def redraw(self):
         self.apply_dark_mode()
@@ -114,10 +119,32 @@ class MainWindow(QMainWindow):
         self.settings.setValue("use_dark_mode", self.use_dark_mode)
         self.settings.setValue("show_success_message", self.show_success_message)
         self.settings.setValue("interpret_escape_sequences", self.interpret_escape_sequences)
-        self.settings.setValue("extension_filter", self.extension_filter_string)
+        self.settings.setValue(
+            "extension_allow_all", self.extension_allow_all
+        )
+        self.settings.setValue(
+            "extension_categories", ",".join(self.extension_categories)
+        )
         self.redraw()
 
-    def set_extension_filters(self, text: str):
-        self.extension_filter_string = text
-        self.extension_filters = self.parse_extensions(text)
+    def set_extension_allow_all(self, state: bool):
+        self.extension_allow_all = state
+        self.extension_filters = build_extension_filters(
+            self.extension_categories, self.extension_allow_all
+        )
+        self.save_settings()
+
+    def set_extension_categories(self, categories: list[str]):
+        self.extension_categories = categories
+        self.extension_filters = build_extension_filters(
+            self.extension_categories, self.extension_allow_all
+        )
+        self.save_settings()
+
+    def reset_extension_settings(self):
+        self.extension_categories = list(DEFAULT_EXTENSION_CATEGORIES)
+        self.extension_allow_all = False
+        self.extension_filters = build_extension_filters(
+            self.extension_categories, self.extension_allow_all
+        )
         self.save_settings()

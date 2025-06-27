@@ -1,7 +1,14 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QCheckBox, QLabel, QSpacerItem, QSizePolicy, QLineEdit
+from PyQt5.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QCheckBox,
+    QLabel,
+    QPushButton,
+)
 from PyQt5.QtCore import Qt
 
 from utils import get_app_version
+from extension_filters import EXTENSION_GROUPS
 
 class SettingsTab(QWidget):
     def __init__(self, main_window):
@@ -30,13 +37,24 @@ class SettingsTab(QWidget):
         inner_layout.addWidget(self.dark_mode_checkbox)
 
         # Extension filters
-        ext_label = QLabel("Allowed Extensions (comma separated):")
+        ext_label = QLabel("File Type Filters:")
         inner_layout.addWidget(ext_label)
-        self.extensions_input = QLineEdit(
-            ", ".join(self.main_window.extension_filters)
-        )
-        self.extensions_input.editingFinished.connect(self.update_extensions)
-        inner_layout.addWidget(self.extensions_input)
+        self.allow_all_checkbox = QCheckBox("Allow all file types")
+        self.allow_all_checkbox.setChecked(self.main_window.extension_allow_all)
+        self.allow_all_checkbox.stateChanged.connect(self.on_allow_all_changed)
+        inner_layout.addWidget(self.allow_all_checkbox)
+
+        self.category_boxes = {}
+        for name, exts in EXTENSION_GROUPS.items():
+            box = QCheckBox(f"{name} ({', '.join(exts)})")
+            box.setChecked(name in self.main_window.extension_categories)
+            box.stateChanged.connect(self.on_categories_changed)
+            inner_layout.addWidget(box)
+            self.category_boxes[name] = box
+
+        reset_btn = QPushButton("Reset File Extensions")
+        reset_btn.clicked.connect(self.reset_extensions)
+        inner_layout.addWidget(reset_btn)
 
         # Add inner layout to a widget to control expansion
         content_widget = QWidget()
@@ -68,9 +86,21 @@ class SettingsTab(QWidget):
         self.main_window.apply_dark_mode()
         self.main_window.redraw()
 
-    def update_extensions(self):
-        text = self.extensions_input.text()
-        self.main_window.set_extension_filters(text)
+    def on_allow_all_changed(self, state):
+        allow = state == Qt.Checked
+        self.main_window.set_extension_allow_all(allow)
+        for box in self.category_boxes.values():
+            box.setEnabled(not allow)
+
+    def on_categories_changed(self, _state):
+        categories = [n for n, b in self.category_boxes.items() if b.isChecked()]
+        self.main_window.set_extension_categories(categories)
+
+    def reset_extensions(self):
+        self.main_window.reset_extension_settings()
+        self.allow_all_checkbox.setChecked(self.main_window.extension_allow_all)
+        for name, box in self.category_boxes.items():
+            box.setChecked(name in self.main_window.extension_categories)
 
     def redraw(self):
         """Redraw all dynamic UI elements if necessary."""
