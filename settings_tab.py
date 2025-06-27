@@ -1,14 +1,17 @@
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
+    QHBoxLayout,
     QCheckBox,
     QLabel,
+    QLineEdit,
     QPushButton,
 )
 from PyQt5.QtCore import Qt
 
 from utils import get_app_version
-from extension_filters import EXTENSION_GROUPS
+from functools import partial
+from extension_filters import EXTENSION_GROUP_DEFAULTS
 
 class SettingsTab(QWidget):
     def __init__(self, main_window):
@@ -44,13 +47,20 @@ class SettingsTab(QWidget):
         self.allow_all_checkbox.stateChanged.connect(self.on_allow_all_changed)
         inner_layout.addWidget(self.allow_all_checkbox)
 
-        self.category_boxes = {}
-        for name, exts in EXTENSION_GROUPS.items():
-            box = QCheckBox(f"{name} ({', '.join(exts)})")
+        self.category_boxes: dict[str, QCheckBox] = {}
+        self.extension_fields: dict[str, QLineEdit] = {}
+        for name in EXTENSION_GROUP_DEFAULTS:
+            row = QHBoxLayout()
+            box = QCheckBox(name)
             box.setChecked(name in self.main_window.extension_categories)
             box.stateChanged.connect(self.on_categories_changed)
-            inner_layout.addWidget(box)
+            field = QLineEdit(self.main_window.extension_group_texts[name])
+            field.textChanged.connect(partial(self.on_extensions_changed, name))
+            row.addWidget(box)
+            row.addWidget(field)
+            inner_layout.addLayout(row)
             self.category_boxes[name] = box
+            self.extension_fields[name] = field
 
         reset_btn = QPushButton("Reset File Extensions")
         reset_btn.clicked.connect(self.reset_extensions)
@@ -91,16 +101,23 @@ class SettingsTab(QWidget):
         self.main_window.set_extension_allow_all(allow)
         for box in self.category_boxes.values():
             box.setEnabled(not allow)
+        for field in self.extension_fields.values():
+            field.setEnabled(not allow)
 
     def on_categories_changed(self, _state):
         categories = [n for n, b in self.category_boxes.items() if b.isChecked()]
         self.main_window.set_extension_categories(categories)
+
+    def on_extensions_changed(self, name: str, text: str):
+        self.main_window.set_extension_group_text(name, text)
 
     def reset_extensions(self):
         self.main_window.reset_extension_settings()
         self.allow_all_checkbox.setChecked(self.main_window.extension_allow_all)
         for name, box in self.category_boxes.items():
             box.setChecked(name in self.main_window.extension_categories)
+        for name, field in self.extension_fields.items():
+            field.setText(self.main_window.extension_group_texts[name])
 
     def redraw(self):
         """Redraw all dynamic UI elements if necessary."""
