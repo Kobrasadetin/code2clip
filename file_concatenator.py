@@ -25,8 +25,8 @@ def concatenate_files(file_paths, root_path=None, prefix='<file filename="$filep
     # Process escape sequences if enabled
     if interpret_escape_sequences:
         try:
-            prefix = prefix.encode('utf-8').decode('unicode_escape')
-            suffix = suffix.encode('utf-8').decode('unicode_escape')
+            prefix = prefix.encode('latin-1', 'backslashreplace').decode('unicode_escape')
+            suffix = suffix.encode('latin-1', 'backslashreplace').decode('unicode_escape')
         except Exception as e:
             QMessageBox.critical(None, "Error", f"Failed to process escape sequences:\n{str(e)}")
             return
