@@ -1,5 +1,6 @@
 import sys
 import os
+from typing import Optional
 
 def resource_path(rel_path: str) -> str:
     """
@@ -14,6 +15,7 @@ def resource_path(rel_path: str) -> str:
         base = os.path.abspath(".")
     return os.path.join(base, rel_path)
 
+
 def get_app_version():
     try:
         return open(resource_path("code2clip_version.txt")).read().strip()
@@ -21,7 +23,7 @@ def get_app_version():
         return "Loading..."
 
 
-def safe_relpath(path: str, start: str | None) -> tuple[str, str | None]:
+def safe_relpath(path: str, start: Optional[str]) -> tuple[str, Optional[str]]:
     """Return a path relative to ``start`` if possible."""
     if not start:
         return os.path.basename(path), None
@@ -40,7 +42,8 @@ def safe_relpath(path: str, start: str | None) -> tuple[str, str | None]:
         )
         return path, msg
 
-def list_files(directory: str, extensions: list[str] | None = None) -> list[str]:
+
+def list_files(directory: str, extensions: Optional[list[str]] = None) -> list[str]:
     """Return a list of files under ``directory`` filtered by extensions."""
     selected: list[str] = []
     normalized = [ext.lower() for ext in extensions] if extensions else None
