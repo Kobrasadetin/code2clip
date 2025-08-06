@@ -1,5 +1,16 @@
 import os
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit, QCheckBox, QFileDialog, QComboBox
+from PyQt5.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QPushButton,
+    QLabel,
+    QLineEdit,
+    QCheckBox,
+    QFileDialog,
+    QComboBox,
+    QInputDialog,
+)
 from PyQt5.QtGui import QDragEnterEvent, QDropEvent
 from PyQt5.QtCore import Qt
 from file_list_widget import FileListWidget
@@ -178,9 +189,26 @@ class ConcatenatorTab(QWidget):
             event.ignore()
 
     def select_root_path(self):
-        """Open folder dialog for selecting root path."""
-        common_path = os.path.commonpath(self.list_widget.files) if self.list_widget.files else None
-        folder = QFileDialog.getExistingDirectory(self, "Select Root Directory", common_path or "")
+        """Select a root path depending on SSH configuration."""
+        common_path = (
+            os.path.commonpath(self.list_widget.files) if self.list_widget.files else None
+        )
+        ssh = getattr(self.main_window, "ssh_manager", None)
+        if ssh and ssh.is_configured():
+            base = common_path or "/"
+            path, ok = QInputDialog.getText(
+                self, "Insert Host Path", "Enter remote root path:", text=base
+            )
+            if ok and path:
+                self.root_path = path
+                self.enable_root_checkbox.setChecked(True)
+                self.list_widget.set_root_path(path)
+                self.root_button.setText(f"Root Path: {path}")
+            return
+
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select Root Directory", common_path or ""
+        )
         if folder:
             self.root_path = folder
             self.enable_root_checkbox.setChecked(True)

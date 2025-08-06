@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
-import getpass
 from typing import Optional
 
 import paramiko
+from PyQt5.QtWidgets import (
+    QApplication,
+    QInputDialog,
+    QLineEdit,
+    QMessageBox,
+)
 
 
 class SSHConnectionManager:
@@ -46,10 +51,32 @@ class SSHConnectionManager:
         try:
             client.connect(self.host, username=self.username)
         except paramiko.AuthenticationException:
-            password = getpass.getpass(
-                f"Password for {self.username}@{self.host}: "
+            parent = QApplication.activeWindow()
+            password, ok = QInputDialog.getText(
+                parent,
+                "SSH Password",
+                f"Enter password for {self.username}@{self.host}",
+                QLineEdit.Password,
             )
-            client.connect(self.host, username=self.username, password=password)
+            if not ok:
+                QMessageBox.warning(
+                    parent, "SSH Connection", "Authentication canceled."
+                )
+                return None
+            try:
+                client.connect(
+                    self.host, username=self.username, password=password
+                )
+            except Exception as exc:
+                QMessageBox.warning(
+                    parent, "SSH Connection Failed", str(exc)
+                )
+                return None
+        except Exception as exc:
+            QMessageBox.warning(
+                QApplication.activeWindow(), "SSH Connection Failed", str(exc)
+            )
+            return None
         self.client = client
         return self.client
 
