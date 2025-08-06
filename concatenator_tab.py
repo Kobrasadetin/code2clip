@@ -140,9 +140,15 @@ class ConcatenatorTab(QWidget):
         if event.mimeData().hasText():
             lines = event.mimeData().text().strip().splitlines()
             for line in lines:
-                path = convert_wsl_path(line.strip())
+                ssh = self.main_window.ssh_manager
+                host = ssh.host if ssh else None
+                path = convert_wsl_path(line.strip(), host)
                 if path:
-                    if os.path.isfile(path):
+                    if ssh and ssh.is_configured() and path.startswith("/"):
+                        if ssh.path_exists(path):
+                            self.list_widget.add_file(path)
+                            added = True
+                    elif os.path.isfile(path):
                         self.list_widget.add_file(path)
                         added = True
                     elif os.path.isdir(path):
@@ -151,9 +157,15 @@ class ConcatenatorTab(QWidget):
         # URL drops (some platforms provide both text and url data)
         if not added and event.mimeData().hasUrls():
             for url in event.mimeData().urls():
-                path = convert_wsl_path(url.toLocalFile())
+                ssh = self.main_window.ssh_manager
+                host = ssh.host if ssh else None
+                path = convert_wsl_path(url.toLocalFile(), host)
                 if path:
-                    if os.path.isfile(path):
+                    if ssh and ssh.is_configured() and path.startswith("/"):
+                        if ssh.path_exists(path):
+                            self.list_widget.add_file(path)
+                            added = True
+                    elif os.path.isfile(path):
                         self.list_widget.add_file(path)
                         added = True
                     elif os.path.isdir(path):
@@ -220,5 +232,6 @@ class ConcatenatorTab(QWidget):
             prefix,
             suffix,
             show_success_message=self.main_window.show_success_message,
-            interpret_escape_sequences=self.main_window.interpret_escape_sequences
+            interpret_escape_sequences=self.main_window.interpret_escape_sequences,
+            ssh_manager=self.main_window.ssh_manager,
         )

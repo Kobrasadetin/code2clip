@@ -16,6 +16,7 @@ from extension_filters import (
 import os
 
 from utils import resource_path
+from ssh_utilities import SSHConnectionManager
 
 def enable_os_override_title_bar(hwnd):
     """Force a dark title bar on Windows 10 (1809+) when dark mode is enabled."""
@@ -74,6 +75,15 @@ class MainWindow(QMainWindow):
         self.extension_filters = build_extension_filters(
             self.extension_categories, self.extension_allow_all, self.extension_groups
         )
+
+        ssh_host = self.settings.value("ssh_host", "", type=str)
+        ssh_user = self.settings.value("ssh_username", "", type=str)
+        self.ssh_manager = SSHConnectionManager(ssh_host or None, ssh_user or None)
+        if self.ssh_manager.is_configured():
+            try:
+                self.ssh_manager.ensure_connection()
+            except Exception as exc:  # pragma: no cover - network error
+                print(f"SSH connection failed: {exc}", file=sys.stderr)
 
         # Create the central widget with a tab widget.
         main_widget = QWidget()
@@ -137,6 +147,8 @@ class MainWindow(QMainWindow):
         for name, text in self.extension_group_texts.items():
             key = f"extensions_{name.replace(' ', '_').lower()}"
             self.settings.setValue(key, text)
+        self.settings.setValue("ssh_host", self.ssh_manager.host or "")
+        self.settings.setValue("ssh_username", self.ssh_manager.username or "")
         self.redraw()
 
     def set_extension_allow_all(self, state: bool):
@@ -165,6 +177,15 @@ class MainWindow(QMainWindow):
             self.extension_allow_all,
             self.extension_groups,
         )
+        self.save_settings()
+
+    def set_ssh_settings(self, host: str, username: str) -> None:
+        self.ssh_manager.configure(host, username)
+        if self.ssh_manager.is_configured():
+            try:
+                self.ssh_manager.ensure_connection()
+            except Exception as exc:  # pragma: no cover - network error
+                print(f"SSH connection failed: {exc}", file=sys.stderr)
         self.save_settings()
 
     def reset_extension_settings(self):
