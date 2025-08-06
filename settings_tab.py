@@ -39,6 +39,19 @@ class SettingsTab(QWidget):
         self.dark_mode_checkbox.stateChanged.connect(self.toggle_dark_mode)
         inner_layout.addWidget(self.dark_mode_checkbox)
 
+        # SSH settings
+        ssh_host_label = QLabel("SSH Host:")
+        inner_layout.addWidget(ssh_host_label)
+        self.ssh_host_input = QLineEdit(self.main_window.ssh_host)
+        self.ssh_host_input.textChanged.connect(self.on_ssh_host_changed)
+        inner_layout.addWidget(self.ssh_host_input)
+
+        ssh_user_label = QLabel("SSH Username:")
+        inner_layout.addWidget(ssh_user_label)
+        self.ssh_user_input = QLineEdit(self.main_window.ssh_user)
+        self.ssh_user_input.textChanged.connect(self.on_ssh_user_changed)
+        inner_layout.addWidget(self.ssh_user_input)
+
         # Extension filters
         ext_label = QLabel("File Type Filters:")
         inner_layout.addWidget(ext_label)
@@ -120,6 +133,12 @@ class SettingsTab(QWidget):
             box.setChecked(name in self.main_window.extension_categories)
         for name, field in self.extension_fields.items():
             field.setText(self.main_window.extension_group_texts[name])
+
+    def on_ssh_host_changed(self, text: str):
+        self.main_window.set_ssh_host(text)
+
+    def on_ssh_user_changed(self, text: str):
+        self.main_window.set_ssh_user(text)
 
     def redraw(self):
         """Redraw all dynamic UI elements if necessary."""

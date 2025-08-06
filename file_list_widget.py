@@ -1,4 +1,5 @@
 import os
+import stat
 import chardet
 from PyQt5.QtWidgets import (
     QListWidget,
@@ -10,7 +11,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QClipboard
 from PyQt5.QtCore import QDateTime, Qt
-from wsl_utilities import convert_wsl_path
+from path_utilities import convert_path, is_file, is_dir
 from utils import safe_relpath, list_files
 
 class FileListWidget(QListWidget):
@@ -70,14 +71,14 @@ class FileListWidget(QListWidget):
         for file_path in file_paths:
             original = file_path
             file_path = self.strip_quotes(file_path)
-            file_path = convert_wsl_path(file_path)
+            file_path = convert_path(file_path, self.main_window.ssh_client)
             # Check absolute path first
-            if os.path.exists(file_path):
+            if is_file(file_path, self.main_window.ssh_client):
                 self.add_file(file_path)
             # If not absolute and root_path is set, try relative to root_path
             elif self.root_path:
                 candidate = os.path.join(self.root_path, file_path)
-                if os.path.exists(candidate):
+                if is_file(candidate, self.main_window.ssh_client):
                     self.add_file(candidate)
                 else:
                     not_found_files.append(original)
@@ -92,16 +93,28 @@ class FileListWidget(QListWidget):
 
     def add_folder(self, folder_path=None):
         if folder_path:
-            files = list_files(
-                folder_path,
-                self.main_window.extension_filters if self.main_window else None,
-            )
+            if (
+                self.main_window
+                and self.main_window.ssh_client
+                and folder_path.startswith('/')):
+                sftp = self.main_window.ssh_client.open_sftp()
+                try:
+                    files = self._list_remote_files(sftp, folder_path)
+                finally:
+                    sftp.close()
+            else:
+                files = list_files(
+                    folder_path,
+                    self.main_window.extension_filters if self.main_window else None,
+                )
             allowed_files = [f for f in files if self.is_allowed(f)]
             if allowed_files:
                 for file_path in files:
                     self.add_file(file_path)
             else:
-                all_files = list_files(folder_path, None)
+                all_files = files if (
+                    self.main_window and self.main_window.ssh_client and folder_path.startswith('/')
+                ) else list_files(folder_path, None)
                 if not all_files:
                     QMessageBox.information(
                         self,
@@ -134,6 +147,17 @@ class FileListWidget(QListWidget):
                     f"No approved files were found. The folder contains: {suggested_exts}.\n"
                     f"Consider enabling the '{suggested}' category.",
                 )
+
+    def _list_remote_files(self, sftp, directory: str) -> list[str]:
+        files: list[str] = []
+        for entry in sftp.listdir_attr(directory):
+            path = os.path.join(directory, entry.filename)
+            if stat.S_ISDIR(entry.st_mode):
+                files.extend(self._list_remote_files(sftp, path))
+            else:
+                files.append(path)
+        return files
+
 
     def strip_quotes(self, text):
         if text.startswith('"') and text.endswith('"'):

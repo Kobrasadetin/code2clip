@@ -75,6 +75,12 @@ class MainWindow(QMainWindow):
             self.extension_categories, self.extension_allow_all, self.extension_groups
         )
 
+        # SSH settings
+        self.ssh_host = self.settings.value("ssh_host", "", type=str)
+        self.ssh_user = self.settings.value("ssh_user", "", type=str)
+        self.ssh_client = None
+        self.update_ssh_connection()
+
         # Create the central widget with a tab widget.
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
@@ -137,6 +143,8 @@ class MainWindow(QMainWindow):
         for name, text in self.extension_group_texts.items():
             key = f"extensions_{name.replace(' ', '_').lower()}"
             self.settings.setValue(key, text)
+        self.settings.setValue("ssh_host", self.ssh_host)
+        self.settings.setValue("ssh_user", self.ssh_user)
         self.redraw()
 
     def set_extension_allow_all(self, state: bool):
@@ -182,3 +190,20 @@ class MainWindow(QMainWindow):
             self.extension_groups,
         )
         self.save_settings()
+
+    def set_ssh_host(self, host: str):
+        self.ssh_host = host
+        self.save_settings()
+        self.update_ssh_connection()
+
+    def set_ssh_user(self, user: str):
+        self.ssh_user = user
+        self.save_settings()
+        self.update_ssh_connection()
+
+    def update_ssh_connection(self):
+        if self.ssh_host and self.ssh_user:
+            from ssh_utilities import connect_ssh
+            self.ssh_client = connect_ssh(self.ssh_host, self.ssh_user, self)
+        else:
+            self.ssh_client = None

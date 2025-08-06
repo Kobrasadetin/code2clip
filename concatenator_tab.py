@@ -5,7 +5,7 @@ from PyQt5.QtCore import Qt
 from file_list_widget import FileListWidget
 from file_concatenator import concatenate_files
 from utils import list_files
-from wsl_utilities import convert_wsl_path
+from path_utilities import convert_path, is_file, is_dir
 
 # Preset definitions for prefix and suffix.
 PRESETS = {
@@ -140,23 +140,23 @@ class ConcatenatorTab(QWidget):
         if event.mimeData().hasText():
             lines = event.mimeData().text().strip().splitlines()
             for line in lines:
-                path = convert_wsl_path(line.strip())
+                path = convert_path(line.strip(), self.main_window.ssh_client)
                 if path:
-                    if os.path.isfile(path):
+                    if is_file(path, self.main_window.ssh_client):
                         self.list_widget.add_file(path)
                         added = True
-                    elif os.path.isdir(path):
+                    elif is_dir(path, self.main_window.ssh_client):
                         self.list_widget.add_folder(path)
                         added = True
         # URL drops (some platforms provide both text and url data)
         if not added and event.mimeData().hasUrls():
             for url in event.mimeData().urls():
-                path = convert_wsl_path(url.toLocalFile())
+                path = convert_path(url.toLocalFile(), self.main_window.ssh_client)
                 if path:
-                    if os.path.isfile(path):
+                    if is_file(path, self.main_window.ssh_client):
                         self.list_widget.add_file(path)
                         added = True
-                    elif os.path.isdir(path):
+                    elif is_dir(path, self.main_window.ssh_client):
                         self.list_widget.add_folder(path)
                         added = True
 
@@ -168,12 +168,27 @@ class ConcatenatorTab(QWidget):
     def select_root_path(self):
         """Open folder dialog for selecting root path."""
         common_path = os.path.commonpath(self.list_widget.files) if self.list_widget.files else None
-        folder = QFileDialog.getExistingDirectory(self, "Select Root Directory", common_path or "")
-        if folder:
-            self.root_path = folder
-            self.enable_root_checkbox.setChecked(True)
-            self.list_widget.set_root_path(folder)
-            self.root_button.setText(f"Root Path: {folder}")
+        if self.main_window.ssh_client:
+            from PyQt5.QtWidgets import QInputDialog
+
+            path, ok = QInputDialog.getText(
+                self,
+                "Insert Host Path",
+                "Remote Path:",
+                text=common_path or "/",
+            )
+            if ok and path:
+                self.root_path = path
+                self.enable_root_checkbox.setChecked(True)
+                self.list_widget.set_root_path(path)
+                self.root_button.setText(f"Root Path: {path}")
+        else:
+            folder = QFileDialog.getExistingDirectory(self, "Select Root Directory", common_path or "")
+            if folder:
+                self.root_path = folder
+                self.enable_root_checkbox.setChecked(True)
+                self.list_widget.set_root_path(folder)
+                self.root_button.setText(f"Root Path: {folder}")
 
     def toggle_root_path(self):
         """Enable or disable root path display based on checkbox."""
@@ -220,5 +235,6 @@ class ConcatenatorTab(QWidget):
             prefix,
             suffix,
             show_success_message=self.main_window.show_success_message,
-            interpret_escape_sequences=self.main_window.interpret_escape_sequences
+            interpret_escape_sequences=self.main_window.interpret_escape_sequences,
+            ssh_client=self.main_window.ssh_client
         )
