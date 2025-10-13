@@ -7,8 +7,10 @@
 ### Key Features:
 - **Drag and Drop**: Add files by dragging them into the application window.
 - **Reorder**: Change the order of concatenation by dragging files in the list.
+- **Filter File Types**: Choose between curated extension categories (Text, Code, Data) or allow everything.
 - **Wrap**: Wrap file contents with **XML**, **Markdown**, or **custom** tags based on their filenames.
 - **Copy to Clipboard**: Instantly copies the concatenated result to your clipboard.
+- **Remote File Support (SSH)**: Pull files directly from a remote machine over SSH.
 - **File Encoding & Metadata**: Inspect file encodings and metadata via a right-click context menu.
 - **WSL2 Path Support**: Automatically converts WSL2 paths to Windows-compatible paths.
 
@@ -37,9 +39,11 @@ python code2clip.py
    - Remove the file
    - Check its encoding
    - View metadata (size, modification date)
-4. **Select a preset** (XML, Markdown, or Custom) to define how files are wrapped.
-5. **Click "Concatenate and Copy to Clipboard"**.
-6. **Paste the result** into your desired application.
+4. **Pick the file filter mode** under *Settings → File Types* to control which extensions are accepted.
+5. **Connect to SSH** (optional) by entering a host and username under *Settings → SSH* — remote paths copied from the clipboard are fetched automatically.
+6. **Select a preset** (XML, Markdown, or Custom) to define how files are wrapped.
+7. **Click "Concatenate and Copy to Clipboard"**.
+8. **Paste the result** into your desired application.
 
 ---
 
@@ -69,6 +73,25 @@ Goodbye World
 ```
 
 This text is **automatically copied** to your clipboard.
+
+---
+
+## Filtering File Types
+
+Version **1.4.0** introduces configurable file filters. Open the **Settings** tab and choose which categories you would like to
+include (Text, Code, or Data). The file list will immediately honour your selection so accidental binary files stay out of the
+clipboard bundle.
+
+If you need to work with every extension, toggle **Allow all extensions** instead. The selection persists between sessions via
+`QSettings`.
+
+---
+
+## Working with SSH Sources
+
+Code2Clip can fetch files from a remote Linux or macOS host. Enter your host and username under **Settings → SSH** and click
+**Connect**. When you copy a remote path into the clipboard, Code2Clip detects it and downloads the contents over SFTP. Authent
+ication retries prompt for a password when required, and the connection is cached for the session.
 
 ---
 
@@ -103,9 +126,10 @@ chmod +x /Applications/Code2Clip.app/Contents/MacOS/code2clip
 ## Installation from Source
 
 ### **Prerequisites**
-- **Python 3.7+** – Download from [python.org](https://www.python.org/downloads/)
+- **Python 3.8+** – Download from [python.org](https://www.python.org/downloads/)
 - **Pip** (comes with Python)
 - **PyQt5** (GUI framework)
+- **Paramiko** (SSH support)
 
 ### **Clone and Install Dependencies**
 It's recommended to use a virtual environment:
