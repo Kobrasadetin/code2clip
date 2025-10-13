@@ -68,7 +68,7 @@ class FileListWidget(QListWidget):
         file_paths = list(filter(None, text.split("\n")))
         not_found_files = []
         ssh = self.main_window.ssh_manager if self.main_window else None
-        host = ssh.host if ssh else None
+        host = ssh.host if (ssh and ssh.is_connected()) else None
         for file_path in file_paths:
             original = file_path
             file_path = self.strip_quotes(file_path)

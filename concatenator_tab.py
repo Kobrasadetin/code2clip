@@ -152,7 +152,7 @@ class ConcatenatorTab(QWidget):
             lines = event.mimeData().text().strip().splitlines()
             for line in lines:
                 ssh = self.main_window.ssh_manager
-                host = ssh.host if ssh else None
+                host = ssh.host if (ssh and ssh.is_connected()) else None
                 path = convert_wsl_path(line.strip(), host)
                 if path:
                     if ssh and ssh.is_connected() and path.startswith("/"):
@@ -169,7 +169,7 @@ class ConcatenatorTab(QWidget):
         if not added and event.mimeData().hasUrls():
             for url in event.mimeData().urls():
                 ssh = self.main_window.ssh_manager
-                host = ssh.host if ssh else None
+                host = ssh.host if (ssh and ssh.is_connected()) else None
                 path = convert_wsl_path(url.toLocalFile(), host)
                 if path:
                     if ssh and ssh.is_connected() and path.startswith("/"):

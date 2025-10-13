@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Optional
+from xmlrpc import client
 
 import paramiko
 from PyQt5.QtWidgets import (
@@ -53,7 +54,14 @@ class SSHConnectionManager:
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         try:
-            client.connect(self.host, username=self.username)
+            client.connect(self.host,
+               username=self.username,
+               timeout=10,
+               auth_timeout=10,
+               banner_timeout=10)
+            transport = client.get_transport()
+            if transport:
+                transport.set_keepalive(30)
         except paramiko.AuthenticationException:
             parent = QApplication.activeWindow()
             password, ok = QInputDialog.getText(
