@@ -73,7 +73,7 @@ class FileListWidget(QListWidget):
             original = file_path
             file_path = self.strip_quotes(file_path)
             file_path = convert_wsl_path(file_path, host)
-            if ssh and ssh.is_configured() and file_path.startswith("/"):
+            if ssh and ssh.is_connected() and file_path.startswith("/"):
                 if ssh.path_exists(file_path):
                     self.add_file(file_path)
                 else:

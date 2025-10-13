@@ -49,7 +49,7 @@ def concatenate_files(
         file_prefix = prefix.replace("$filepath", filepath_string)
 
         try:
-            if ssh_manager and ssh_manager.is_configured() and filepath.startswith("/"):
+            if ssh_manager and ssh_manager.is_connected() and filepath.startswith("/"):
                 raw_data = ssh_manager.read_bytes(filepath)
             else:
                 with open(filepath, "rb") as file:

@@ -37,6 +37,10 @@ class SSHConnectionManager:
     # ------------------------------------------------------------------
     def is_configured(self) -> bool:
         return bool(self.host and self.username)
+    
+    # ------------------------------------------------------------------
+    def is_connected(self) -> bool:
+        return self.client is not None
 
     # ------------------------------------------------------------------
     def ensure_connection(self) -> Optional[paramiko.SSHClient]:

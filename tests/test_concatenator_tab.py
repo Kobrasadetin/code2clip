@@ -23,6 +23,9 @@ class DummySSH:
 
     def is_configured(self):
         return self._configured
+    
+    def is_connected(self):
+        return self._configured
 
 
 class TestSelectRootPath(unittest.TestCase):

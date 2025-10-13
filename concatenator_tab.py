@@ -155,7 +155,7 @@ class ConcatenatorTab(QWidget):
                 host = ssh.host if ssh else None
                 path = convert_wsl_path(line.strip(), host)
                 if path:
-                    if ssh and ssh.is_configured() and path.startswith("/"):
+                    if ssh and ssh.is_connected() and path.startswith("/"):
                         if ssh.path_exists(path):
                             self.list_widget.add_file(path)
                             added = True
@@ -172,7 +172,7 @@ class ConcatenatorTab(QWidget):
                 host = ssh.host if ssh else None
                 path = convert_wsl_path(url.toLocalFile(), host)
                 if path:
-                    if ssh and ssh.is_configured() and path.startswith("/"):
+                    if ssh and ssh.is_connected() and path.startswith("/"):
                         if ssh.path_exists(path):
                             self.list_widget.add_file(path)
                             added = True
@@ -194,7 +194,7 @@ class ConcatenatorTab(QWidget):
             os.path.commonpath(self.list_widget.files) if self.list_widget.files else None
         )
         ssh = getattr(self.main_window, "ssh_manager", None)
-        if ssh and ssh.is_configured():
+        if ssh and ssh.is_connected():
             base = common_path or "/"
             path, ok = QInputDialog.getText(
                 self, "Insert Host Path", "Enter remote root path:", text=base

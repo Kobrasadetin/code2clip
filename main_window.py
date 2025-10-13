@@ -200,8 +200,8 @@ class MainWindow(QMainWindow):
                 self.settings_tab.update_ssh_status(False)
             return
 
-        client = self.ssh_manager.ensure_connection()
-        is_connected = client is not None
+        self.ssh_manager.ensure_connection()
+        is_connected = self.is_ssh_connected()
         if hasattr(self, "settings_tab"):
             self.settings_tab.update_ssh_status(is_connected)
         if is_connected:
@@ -210,7 +210,7 @@ class MainWindow(QMainWindow):
             )
 
     def is_ssh_connected(self) -> bool:
-        return self.ssh_manager.client is not None
+        return self.ssh_manager.is_connected()
 
     def reset_extension_settings(self):
         self.extension_categories = list(DEFAULT_EXTENSION_CATEGORIES)
