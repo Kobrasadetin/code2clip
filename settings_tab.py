@@ -52,6 +52,19 @@ class SettingsTab(QWidget):
         ssh_row.addWidget(self.ssh_user)
         inner_layout.addLayout(ssh_row)
 
+        ssh_status_row = QHBoxLayout()
+        self.ssh_status_indicator = QLabel("\u25CF")
+        self.ssh_status_indicator.setFixedWidth(16)
+        self.ssh_status_text = QLabel()
+        ssh_status_row.addWidget(self.ssh_status_indicator)
+        ssh_status_row.addWidget(self.ssh_status_text)
+        ssh_status_row.addStretch()
+        self.connect_button = QPushButton("Connect")
+        self.connect_button.clicked.connect(self.main_window.connect_to_ssh)
+        ssh_status_row.addWidget(self.connect_button)
+        inner_layout.addLayout(ssh_status_row)
+        self.update_ssh_status(self.main_window.is_ssh_connected())
+
         # Extension filters
         ext_label = QLabel("File Type Filters:")
         inner_layout.addWidget(ext_label)
@@ -143,4 +156,12 @@ class SettingsTab(QWidget):
         host = self.ssh_host.text().strip()
         user = self.ssh_user.text().strip()
         self.main_window.set_ssh_settings(host, user)
+
+    def update_ssh_status(self, connected: bool) -> None:
+        color = "#28a745" if connected else "#dc3545"
+        text = "Connected" if connected else "Disconnected"
+        self.ssh_status_indicator.setStyleSheet(
+            f"color: {color}; font-size: 14px; margin-right: 4px;"
+        )
+        self.ssh_status_text.setText(text)
 
