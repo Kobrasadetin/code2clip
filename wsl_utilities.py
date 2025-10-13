@@ -3,10 +3,11 @@
 import os
 import platform
 import subprocess
+from typing import Optional
 import sys
 
 
-def get_default_wsl_distro():
+def get_default_wsl_distro() -> Optional[str]:
     """Retrieve the default WSL2 distribution name and clean null bytes."""
     try:
         result = subprocess.check_output(["wsl", "-l", "-q"], universal_newlines=False)
@@ -24,7 +25,7 @@ def get_default_wsl_distro():
     return None
 
 
-def convert_wsl_path(filepath: str, network_host: str | None = None) -> str:
+def convert_wsl_path(filepath: str, network_host: Optional[str] = None) -> str:
     """Convert a WSL2 path to a Windows-compatible path.
 
     When a network host is specified, the path is assumed to refer to that host
