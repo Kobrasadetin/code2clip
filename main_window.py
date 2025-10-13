@@ -227,3 +227,10 @@ class MainWindow(QMainWindow):
             self.extension_groups,
         )
         self.save_settings()
+
+    def closeEvent(self, event):
+        try:
+            if getattr(self, "ssh_manager", None):
+                self.ssh_manager.close()
+        finally:
+            super().closeEvent(event)

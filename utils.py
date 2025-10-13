@@ -17,9 +17,11 @@ def resource_path(rel_path: str) -> str:
 
 
 def get_app_version():
+    """Fetches the application version from the version file."""
     try:
-        return open(resource_path("code2clip_version.txt")).read().strip()
-    except:
+        with open(resource_path("code2clip_version.txt")) as f:
+            return f.read().strip()
+    except FileNotFoundError:
         return "Loading..."
 
 

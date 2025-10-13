@@ -1,4 +1,5 @@
 import os
+import posixpath
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -92,6 +93,15 @@ class ConcatenatorTab(QWidget):
         layout.addWidget(self.concat_button)
 
         self.setLayout(layout)
+    
+       # --- helpers ---------------------------------------------------------
+    def _is_remote(self) -> bool:
+        ssh = getattr(self.main_window, "ssh_manager", None)
+        return bool(ssh and ssh.is_connected())
+
+    def _to_posix(self, path: str) -> str:
+        # Ensure forward slashes for remote paths
+        return path.replace("\\", "/") if path else path
 
     def load_preset_settings(self):
         # Suppress change handling during load
@@ -154,6 +164,8 @@ class ConcatenatorTab(QWidget):
                 ssh = self.main_window.ssh_manager
                 host = ssh.host if (ssh and ssh.is_connected()) else None
                 path = convert_wsl_path(line.strip(), host)
+                if self._is_remote():
+                    path = self._to_posix(path)
                 if path:
                     if ssh and ssh.is_connected() and path.startswith("/"):
                         if ssh.path_exists(path):
@@ -171,6 +183,8 @@ class ConcatenatorTab(QWidget):
                 ssh = self.main_window.ssh_manager
                 host = ssh.host if (ssh and ssh.is_connected()) else None
                 path = convert_wsl_path(url.toLocalFile(), host)
+                if self._is_remote():
+                    path = self._to_posix(path)
                 if path:
                     if ssh and ssh.is_connected() and path.startswith("/"):
                         if ssh.path_exists(path):
@@ -190,21 +204,24 @@ class ConcatenatorTab(QWidget):
 
     def select_root_path(self):
         """Select a root path depending on SSH configuration."""
-        common_path = (
-            os.path.commonpath(self.list_widget.files) if self.list_widget.files else None
-        )
-        ssh = getattr(self.main_window, "ssh_manager", None)
-        if ssh and ssh.is_connected():
-            base = common_path or "/"
+        if self._is_remote():
+            if self.list_widget.files:
+                only_posix = [self._to_posix(p) for p in self.list_widget.files if p.startswith("/")]
+                base = posixpath.commonpath(only_posix) if only_posix else "/"
+            else:
+                base = "/"
             path, ok = QInputDialog.getText(
-                self, "Insert Host Path", "Enter remote root path:", text=base
+                 self, "Insert Host Path", "Enter remote root path:", text=base
             )
             if ok and path:
-                self.root_path = path
+                self.root_path = self._to_posix(path)
                 self.enable_root_checkbox.setChecked(True)
-                self.list_widget.set_root_path(path)
-                self.root_button.setText(f"Root Path: {path}")
+                self.list_widget.set_root_path(self.root_path)
+                self.root_button.setText(f"Root Path: {self.root_path}")
             return
+
+        # local: Windows/UNIX native commonpath
+        common_path = os.path.commonpath(self.list_widget.files) if self.list_widget.files else None
 
         folder = QFileDialog.getExistingDirectory(
             self, "Select Root Directory", common_path or ""
@@ -222,7 +239,8 @@ class ConcatenatorTab(QWidget):
             if not self.root_path:
                 self.select_root_path()
             else:
-                self.list_widget.set_root_path(self.root_path)
+                rp = self._to_posix(self.root_path) if self._is_remote() else self.root_path
+                self.list_widget.set_root_path(rp)
         else:
             self.root_path = None
             self.list_widget.disable_root_path()

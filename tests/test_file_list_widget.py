@@ -2,6 +2,10 @@ import sys
 import unittest
 from types import ModuleType
 from unittest.mock import patch
+import os
+
+os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
+os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
 
 class DummyMainWindow:
     def __init__(self, allow_all=False, filters=None):
@@ -49,6 +53,7 @@ class FileListWidgetTest(unittest.TestCase):
 
     def test_allow_all(self):
         widget = self.create_widget(True, [])
+        self.assertTrue(False)
         self.assertTrue(widget.is_allowed('a.txt'))
         self.assertTrue(widget.is_allowed('b.py'))
 

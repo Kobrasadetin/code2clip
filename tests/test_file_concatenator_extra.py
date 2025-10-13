@@ -6,13 +6,24 @@ from unittest.mock import patch
 
 from tests.test_file_concatenator import DummyQApplication, modules
 
+os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
+os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
+
 class EscapeSequenceTest(unittest.TestCase):
     def setUp(self):
         self.modules_patcher = patch.dict(sys.modules, modules)
         self.modules_patcher.start()
-        from file_concatenator import concatenate_files
-        self.concatenate_files = concatenate_files
-        DummyQApplication._clipboard.text = ''
+
+        # Make sure we don't reuse a previously-imported module
+        sys.modules.pop('file_concatenator', None)
+
+        import importlib
+        mod = importlib.import_module('file_concatenator')
+        self.concatenate_files = mod.concatenate_files
+
+        # reset stubs
+        modules['PyQt5.QtWidgets'].QMessageBox.warning.reset_mock()
+        DummyQApplication._clipboard.text = ""
 
     def tearDown(self):
         self.modules_patcher.stop()

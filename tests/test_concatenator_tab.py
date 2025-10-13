@@ -3,11 +3,12 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt5.QtWidgets import QApplication
 
 from concatenator_tab import ConcatenatorTab
 
+os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
+os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
 
 class DummySettings(dict):
     def value(self, key, default=None):

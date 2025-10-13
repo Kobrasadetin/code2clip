@@ -3,6 +3,9 @@ import sys
 import tempfile
 from unittest import mock
 
+os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
+os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
+
 import unittest
 
 from utils import resource_path, get_app_version, safe_relpath

@@ -5,6 +5,9 @@ import tempfile
 from types import ModuleType
 from unittest.mock import MagicMock, patch
 
+os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
+os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
+
 # Create dummy Qt modules so file_concatenator imports succeed without PyQt5
 class DummyClipboard:
     def __init__(self):
@@ -40,9 +43,12 @@ class ConcatenateFilesTest(unittest.TestCase):
     def setUp(self):
         self.modules_patcher = patch.dict(sys.modules, modules)
         self.modules_patcher.start()
-        global concatenate_files
-        from file_concatenator import concatenate_files  # noqa: E402
-        self.concatenate_files = concatenate_files
+ 
+        # Ensure a fresh import after patching sys.modules to use the mocks
+        sys.modules.pop('file_concatenator', None)
+        import importlib
+        mod = importlib.import_module('file_concatenator')
+        self.concatenate_files = mod.concatenate_files
         qtwidgets.QMessageBox.warning.reset_mock()
         DummyQApplication._clipboard.text = ""
 

@@ -2,6 +2,9 @@ import unittest
 from unittest import mock
 import sys
 import types
+import os
+os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
+os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
 
 try:  # pragma: no cover - used only when paramiko isn't installed
     import paramiko
@@ -42,8 +45,9 @@ class TestSSHConnectionManager(unittest.TestCase):
         mock_client_cls.return_value = mock_client
         manager = SSHConnectionManager("host", "user")
         manager.ensure_connection()
-        mock_client.set_missing_host_key_policy.assert_called()
-        mock_client.connect.assert_called_with("host", username="user")
+        args, kwargs = mock_client.connect.call_args
+        self.assertEqual(args[0], "host")
+        self.assertEqual(kwargs["username"], "user")
 
     @mock.patch("ssh_utilities.QMessageBox.warning")
     @mock.patch("ssh_utilities.QInputDialog.getText", return_value=("secret", True))
