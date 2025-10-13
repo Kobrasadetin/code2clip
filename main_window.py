@@ -1,7 +1,14 @@
 import sys
 import platform
 import ctypes
-from PyQt5.QtWidgets import QMainWindow, QTabWidget, QVBoxLayout, QWidget, QApplication
+from PyQt5.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QMessageBox,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 from PyQt5.QtGui import QPalette, QColor, QIcon
 from PyQt5.QtCore import QSettings, QSize
 
@@ -16,6 +23,7 @@ from extension_filters import (
 import os
 
 from utils import resource_path
+from ssh_utilities import SSHConnectionManager
 
 def enable_os_override_title_bar(hwnd):
     """Force a dark title bar on Windows 10 (1809+) when dark mode is enabled."""
@@ -75,6 +83,10 @@ class MainWindow(QMainWindow):
             self.extension_categories, self.extension_allow_all, self.extension_groups
         )
 
+        ssh_host = self.settings.value("ssh_host", "", type=str)
+        ssh_user = self.settings.value("ssh_username", "", type=str)
+        self.ssh_manager = SSHConnectionManager(ssh_host or None, ssh_user or None)
+
         # Create the central widget with a tab widget.
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
@@ -83,6 +95,8 @@ class MainWindow(QMainWindow):
         self.settings_tab = SettingsTab(self)
         self.tabs.addTab(self.concatenator_tab, "Concatenator")
         self.tabs.addTab(self.settings_tab, "Settings")
+
+        self.settings_tab.update_ssh_status(self.is_ssh_connected())
 
         layout = QVBoxLayout()
         layout.addWidget(self.tabs)
@@ -137,6 +151,8 @@ class MainWindow(QMainWindow):
         for name, text in self.extension_group_texts.items():
             key = f"extensions_{name.replace(' ', '_').lower()}"
             self.settings.setValue(key, text)
+        self.settings.setValue("ssh_host", self.ssh_manager.host or "")
+        self.settings.setValue("ssh_username", self.ssh_manager.username or "")
         self.redraw()
 
     def set_extension_allow_all(self, state: bool):
@@ -167,6 +183,35 @@ class MainWindow(QMainWindow):
         )
         self.save_settings()
 
+    def set_ssh_settings(self, host: str, username: str) -> None:
+        self.ssh_manager.configure(host, username)
+        self.save_settings()
+        if hasattr(self, "settings_tab"):
+            self.settings_tab.update_ssh_status(self.is_ssh_connected())
+
+    def connect_to_ssh(self) -> None:
+        if not self.ssh_manager.is_configured():
+            QMessageBox.warning(
+                self,
+                "SSH Connection",
+                "Please enter an SSH host and username before connecting.",
+            )
+            if hasattr(self, "settings_tab"):
+                self.settings_tab.update_ssh_status(False)
+            return
+
+        self.ssh_manager.ensure_connection()
+        is_connected = self.is_ssh_connected()
+        if hasattr(self, "settings_tab"):
+            self.settings_tab.update_ssh_status(is_connected)
+        if is_connected:
+            QMessageBox.information(
+                self, "SSH Connection", "SSH connection established successfully."
+            )
+
+    def is_ssh_connected(self) -> bool:
+        return self.ssh_manager.is_connected()
+
     def reset_extension_settings(self):
         self.extension_categories = list(DEFAULT_EXTENSION_CATEGORIES)
         self.extension_allow_all = False
@@ -182,3 +227,10 @@ class MainWindow(QMainWindow):
             self.extension_groups,
         )
         self.save_settings()
+
+    def closeEvent(self, event):
+        try:
+            if getattr(self, "ssh_manager", None):
+                self.ssh_manager.close()
+        finally:
+            super().closeEvent(event)

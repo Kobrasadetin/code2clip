@@ -22,5 +22,11 @@ class TestConvertWslPath(unittest.TestCase):
              mock.patch('wsl_utilities.get_default_wsl_distro', return_value=None):
             self.assertEqual(wsl_utilities.convert_wsl_path('/path'), '/path')
 
+    def test_windows_with_network_host(self):
+        with mock.patch('platform.system', return_value='Windows'):
+            self.assertEqual(
+                wsl_utilities.convert_wsl_path('/path', 'example.com'), '/path'
+            )
+
 if __name__ == '__main__':
     unittest.main()

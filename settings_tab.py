@@ -39,6 +39,32 @@ class SettingsTab(QWidget):
         self.dark_mode_checkbox.stateChanged.connect(self.toggle_dark_mode)
         inner_layout.addWidget(self.dark_mode_checkbox)
 
+        ssh_label = QLabel("SSH Connection:")
+        inner_layout.addWidget(ssh_label)
+        ssh_row = QHBoxLayout()
+        self.ssh_host = QLineEdit(self.main_window.ssh_manager.host or "")
+        self.ssh_user = QLineEdit(self.main_window.ssh_manager.username or "")
+        self.ssh_host.setPlaceholderText("host")
+        self.ssh_user.setPlaceholderText("username")
+        self.ssh_host.editingFinished.connect(self.update_ssh_settings)
+        self.ssh_user.editingFinished.connect(self.update_ssh_settings)
+        ssh_row.addWidget(self.ssh_host)
+        ssh_row.addWidget(self.ssh_user)
+        inner_layout.addLayout(ssh_row)
+
+        ssh_status_row = QHBoxLayout()
+        self.ssh_status_indicator = QLabel("\u25CF")
+        self.ssh_status_indicator.setFixedWidth(16)
+        self.ssh_status_text = QLabel()
+        ssh_status_row.addWidget(self.ssh_status_indicator)
+        ssh_status_row.addWidget(self.ssh_status_text)
+        ssh_status_row.addStretch()
+        self.connect_button = QPushButton("Connect")
+        self.connect_button.clicked.connect(self.main_window.connect_to_ssh)
+        ssh_status_row.addWidget(self.connect_button)
+        inner_layout.addLayout(ssh_status_row)
+        self.update_ssh_status(self.main_window.is_ssh_connected())
+
         # Extension filters
         ext_label = QLabel("File Type Filters:")
         inner_layout.addWidget(ext_label)
@@ -125,4 +151,17 @@ class SettingsTab(QWidget):
         """Redraw all dynamic UI elements if necessary."""
         # For now, if there are labels or other elements needing theme updates, do it here.
         pass
+
+    def update_ssh_settings(self):
+        host = self.ssh_host.text().strip()
+        user = self.ssh_user.text().strip()
+        self.main_window.set_ssh_settings(host, user)
+
+    def update_ssh_status(self, connected: bool) -> None:
+        color = "#28a745" if connected else "#dc3545"
+        text = "Connected" if connected else "Disconnected"
+        self.ssh_status_indicator.setStyleSheet(
+            f"color: {color}; font-size: 14px; margin-right: 4px;"
+        )
+        self.ssh_status_text.setText(text)
 
