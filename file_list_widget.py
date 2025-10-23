@@ -75,15 +75,15 @@ class FileListWidget(QListWidget):
             file_path = convert_wsl_path(file_path, host)
             if ssh and ssh.is_connected() and file_path.startswith("/"):
                 if ssh.path_exists(file_path):
-                    self.add_file(file_path)
+                    self.add_file(file_path, enforce_filter=False)
                 else:
                     not_found_files.append(original)
             elif os.path.exists(file_path):
-                self.add_file(file_path)
+                self.add_file(file_path, enforce_filter=False)
             elif self.root_path:
                 candidate = os.path.join(self.root_path, file_path)
                 if os.path.exists(candidate):
-                    self.add_file(candidate)
+                    self.add_file(candidate, enforce_filter=False)
                 else:
                     not_found_files.append(original)
             else:
@@ -206,10 +206,13 @@ class FileListWidget(QListWidget):
                 f"Failed to retrieve metadata for {os.path.basename(filepath)}.\n{str(e)}",
             )
 
-    def add_file(self, filepath):
-        if filepath not in self.files and self.is_allowed(filepath):
-            self.files.append(filepath)
-            self.update_list_display()
+    def add_file(self, filepath, enforce_filter=True):
+        if filepath in self.files:
+            return
+        if enforce_filter and not self.is_allowed(filepath):
+            return
+        self.files.append(filepath)
+        self.update_list_display()
 
     def is_allowed(self, filepath: str) -> bool:
         if not self.main_window:

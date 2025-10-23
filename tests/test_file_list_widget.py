@@ -11,6 +11,7 @@ class DummyMainWindow:
     def __init__(self, allow_all=False, filters=None):
         self.extension_allow_all = allow_all
         self.extension_filters = [f.lower() for f in (filters or [])]
+        self.ssh_manager = None
 
 class FileListWidgetTest(unittest.TestCase):
     def setUp(self):
@@ -49,6 +50,9 @@ class FileListWidgetTest(unittest.TestCase):
     def create_widget(self, allow_all=False, filters=None):
         obj = self.fw_module.FileListWidget.__new__(self.fw_module.FileListWidget)
         obj.main_window = DummyMainWindow(allow_all, filters)
+        obj.files = []
+        obj.root_path = None
+        obj.update_list_display = lambda: None
         return obj
 
     def test_allow_all(self):
@@ -70,6 +74,31 @@ class FileListWidgetTest(unittest.TestCase):
         widget = self.create_widget(False, [])
         self.assertFalse(widget.is_allowed('a.txt'))
         self.assertFalse(widget.is_allowed('b.py'))
+
+    def test_add_file_respects_filters_by_default(self):
+        widget = self.create_widget(False, ['.txt'])
+        widget.add_file('/tmp/sample.py')
+        self.assertEqual(widget.files, [])
+
+    def test_add_file_can_bypass_filters(self):
+        widget = self.create_widget(False, ['.txt'])
+        widget.add_file('/tmp/sample.py', enforce_filter=False)
+        self.assertEqual(widget.files, ['/tmp/sample.py'])
+
+    def test_add_clipboard_files_bypass_filter(self):
+        widget = self.create_widget(False, ['.txt'])
+
+        class DummyClipboard:
+            def text(self):
+                return '/tmp/sample.py\n'
+
+        dummy_app = type('DummyApp', (), {'clipboard': staticmethod(lambda: DummyClipboard())})
+        self.fw_module.QApplication = dummy_app
+
+        with patch('file_list_widget.os.path.exists', return_value=True):
+            widget.add_clipboard_files()
+
+        self.assertEqual(widget.files, ['/tmp/sample.py'])
 
 if __name__ == '__main__':
     unittest.main()

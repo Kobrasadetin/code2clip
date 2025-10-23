@@ -169,10 +169,10 @@ class ConcatenatorTab(QWidget):
                 if path:
                     if ssh and ssh.is_connected() and path.startswith("/"):
                         if ssh.path_exists(path):
-                            self.list_widget.add_file(path)
+                            self.list_widget.add_file(path, enforce_filter=False)
                             added = True
                     elif os.path.isfile(path):
-                        self.list_widget.add_file(path)
+                        self.list_widget.add_file(path, enforce_filter=False)
                         added = True
                     elif os.path.isdir(path):
                         self.list_widget.add_folder(path)
@@ -188,10 +188,10 @@ class ConcatenatorTab(QWidget):
                 if path:
                     if ssh and ssh.is_connected() and path.startswith("/"):
                         if ssh.path_exists(path):
-                            self.list_widget.add_file(path)
+                            self.list_widget.add_file(path, enforce_filter=False)
                             added = True
                     elif os.path.isfile(path):
-                        self.list_widget.add_file(path)
+                        self.list_widget.add_file(path, enforce_filter=False)
                         added = True
                     elif os.path.isdir(path):
                         self.list_widget.add_folder(path)
