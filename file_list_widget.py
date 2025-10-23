@@ -1,4 +1,5 @@
 import os
+from functools import partial
 from typing import Callable, Iterable, Optional
 
 import chardet
@@ -35,6 +36,10 @@ class FileListWidget(QListWidget):
         self.files = []
         self.root_path = None
         self._change_callback = change_callback
+        self._undo_handler: Optional[Callable[[], None]] = None
+        self._redo_handler: Optional[Callable[[], None]] = None
+        self._can_undo: Optional[Callable[[], bool]] = None
+        self._can_redo: Optional[Callable[[], bool]] = None
 
     def set_change_callback(self, callback: Optional[Callable[[], None]]) -> None:
         self._change_callback = callback
@@ -44,6 +49,19 @@ class FileListWidget(QListWidget):
         if callback:
             callback()
 
+    def set_history_handlers(
+        self,
+        *,
+        undo_handler: Optional[Callable[[], None]] = None,
+        redo_handler: Optional[Callable[[], None]] = None,
+        can_undo: Optional[Callable[[], bool]] = None,
+        can_redo: Optional[Callable[[], bool]] = None,
+    ) -> None:
+        self._undo_handler = undo_handler
+        self._redo_handler = redo_handler
+        self._can_undo = can_undo
+        self._can_redo = can_redo
+
     def set_files(self, files: Iterable[str], notify: bool = True) -> None:
         self.files = list(files)
         self.update_list_display()
@@ -52,37 +70,52 @@ class FileListWidget(QListWidget):
 
     def contextMenuEvent(self, event):
         item = self.itemAt(event.pos())
-        # handle item clicked
-        if item:
-            menu = QMenu(self)
-            remove_action = menu.addAction("Remove File")
-            encoding_action = menu.addAction("Check Encoding")
-            metadata_action = menu.addAction("View Metadata")
+        menu = QMenu(self)
 
-            action = menu.exec_(self.mapToGlobal(event.pos()))
-            if action == remove_action:
-                self.remove_item(item)
-            elif action == encoding_action:
-                self.check_encoding(item)
-            elif action == metadata_action:
-                self.view_metadata(item)
-        # handle empty space clicked
-        else:
-            menu = QMenu(self)
-            add_action = menu.addAction("Add File(s) From Clipboard")
-            add_folder_action = menu.addAction("Add Folder")
-            remove_all_action = menu.addAction("Remove All Files")
-            action = menu.exec_(self.mapToGlobal(event.pos()))
-            if action == add_action:
-                self.add_clipboard_files()
-            elif action == add_folder_action:
-                self.add_folder(folder_path = QFileDialog.getExistingDirectory(
-                    self,
-                    "Select Folder",
-                    options=QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
-                ))
-            elif action == remove_all_action:
-                self.remove_all()
+        undo_action = menu.addAction("Undo")
+        can_undo = self._can_undo() if self._can_undo else False
+        undo_action.setEnabled(can_undo)
+        if can_undo and self._undo_handler:
+            undo_action.triggered.connect(self._undo_handler)
+
+        redo_action = menu.addAction("Redo")
+        can_redo = self._can_redo() if self._can_redo else False
+        redo_action.setEnabled(can_redo)
+        if can_redo and self._redo_handler:
+            redo_action.triggered.connect(self._redo_handler)
+
+        menu.addSeparator()
+
+        add_clipboard_action = menu.addAction("Add File(s) From Clipboard")
+        add_clipboard_action.triggered.connect(self.add_clipboard_files)
+
+        def add_folder_from_dialog():
+            folder = QFileDialog.getExistingDirectory(
+                self,
+                "Select Folder",
+                options=QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks,
+            )
+            if folder:
+                self.add_folder(folder)
+
+        add_folder_action = menu.addAction("Add Folder")
+        add_folder_action.triggered.connect(add_folder_from_dialog)
+
+        remove_all_action = menu.addAction("Remove All Files")
+        remove_all_action.triggered.connect(self.remove_all)
+
+        if item:
+            menu.addSeparator()
+            remove_action = menu.addAction("Remove File")
+            remove_action.triggered.connect(partial(self.remove_item, item))
+
+            encoding_action = menu.addAction("Check Encoding")
+            encoding_action.triggered.connect(partial(self.check_encoding, item))
+
+            metadata_action = menu.addAction("View Metadata")
+            metadata_action.triggered.connect(partial(self.view_metadata, item))
+
+        menu.exec_(self.mapToGlobal(event.pos()))
 
     def add_clipboard_files(self):
         clipboard: QClipboard = QApplication.clipboard()

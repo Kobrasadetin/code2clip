@@ -5,6 +5,7 @@ from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
     QMessageBox,
+    QStyle,
     QTabBar,
     QTabWidget,
     QToolButton,
@@ -93,11 +94,12 @@ class MainWindow(QMainWindow):
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         self.tabs = QTabWidget()
-        self.tabs.setTabsClosable(True)
+        self.tabs.setTabsClosable(False)
         self.tabs.tabCloseRequested.connect(self.close_workspace_tab)
 
         self.new_tab_button = QToolButton()
         self.new_tab_button.setText("+")
+        self.new_tab_button.setAutoRaise(True)
         self.new_tab_button.clicked.connect(self.add_workspace_tab)
         self.tabs.setCornerWidget(self.new_tab_button, Qt.TopRightCorner)
 
@@ -162,6 +164,21 @@ class MainWindow(QMainWindow):
             if settings_index != -1:
                 for side in (QTabBar.LeftSide, QTabBar.RightSide):
                     tab_bar.setTabButton(settings_index, side, None)
+        close_icon = self.style().standardIcon(QStyle.SP_TitleBarCloseButton)
+        for index in range(self.tabs.count()):
+            widget = self.tabs.widget(index)
+            if widget is self.settings_tab:
+                continue
+            button = QToolButton(tab_bar)
+            button.setAutoRaise(True)
+            button.setIcon(close_icon)
+            button.clicked.connect(lambda _, w=widget: self._close_workspace_widget(w))
+            tab_bar.setTabButton(index, QTabBar.RightSide, button)
+
+    def _close_workspace_widget(self, widget: QWidget) -> None:
+        index = self.tabs.indexOf(widget)
+        if index != -1:
+            self.close_workspace_tab(index)
 
     def redraw(self):
         """Redraw all dynamic UI elements if necessary."""

@@ -84,12 +84,16 @@ class TestTabHistory(unittest.TestCase):
         tab = self.create_tab()
         tab.list_widget.add_file("/tmp/example.py", enforce_filter=False)
         self.assertEqual(tab.list_widget.files, ["/tmp/example.py"])
+        self.assertTrue(tab.can_undo())
+        self.assertFalse(tab.can_redo())
         tab.undo()
         self.assertEqual(tab.list_widget.files, [])
-        self.assertFalse(tab.undo_button.isEnabled())
-        self.assertTrue(tab.redo_button.isEnabled())
+        self.assertFalse(tab.can_undo())
+        self.assertTrue(tab.can_redo())
         tab.redo()
         self.assertEqual(tab.list_widget.files, ["/tmp/example.py"])
+        self.assertTrue(tab.can_undo())
+        self.assertFalse(tab.can_redo())
 
     def test_tabs_have_independent_prefixes(self):
         tab_one = self.create_tab()
