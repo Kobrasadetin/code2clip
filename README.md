@@ -1,3 +1,7 @@
+Here’s a tightened README that matches the new **Windows = ZIPped onedir** packaging, keeps macOS app wrapping, and adds quick run notes per platform. I also swapped the repo placeholder to your GitHub handle.
+
+---
+
 # Code2Clip — File Concatenator
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
@@ -15,18 +19,61 @@ A small desktop tool to concatenate files and copy the result to the clipboard.
 
 ![Code2Clip Main Window](assets/screenshot.png)
 
-## Quick Start
+## New in 1.5
+
+Tabs & undo.
+
+---
+
+## Install / Run (prebuilt binaries)
+
+### Windows (ZIP, portable)
+
+1. Download **`Code2Clip-windows.zip`** from Releases.
+2. Right-click → **Extract All…**
+3. Open the extracted `code2clip` folder and run `code2clip.exe`.
+
+> Note: The app is unsigned. If SmartScreen warns you, choose **More info → Run anyway**.
+
+### macOS (unsigned `.app`)
+
+1. Download **`Code2Clip-macos.zip`** (or `-macos-intel.zip`) from Releases.
+2. Unzip, then move `Code2Clip.app` to `/Applications`.
+3. First run may be blocked by Gatekeeper. You can either right-click → **Open** or clear quarantine and run:
+
+```bash
+xattr -d com.apple.quarantine /Applications/Code2Clip.app
+open /Applications/Code2Clip.app
+# If needed:
+chmod +x /Applications/Code2Clip.app/Contents/MacOS/code2clip
+/Applications/Code2Clip.app/Contents/MacOS/code2clip
+```
+
+### Linux (ZIP, portable)
+
+1. Download **`code2clip-linux.zip`** from Releases.
+2. Unzip, then run:
+
+```bash
+cd code2clip
+chmod +x ./code2clip
+./code2clip
+```
+
+---
+
+## Quick Start (from source)
 
 ```bash
 python code2clip.py
 ```
 
 1. Drag files into the window
-2. (Optional) Set filter / SSH in **Settings**
+2. (Optional) Configure filters / SSH in **Settings**
 3. Choose wrap preset or custom prefix/suffix
 4. Click **Concatenate and Copy** and paste anywhere
 
-## Example (XML preset)
+### Example (XML preset)
 
 ```xml
 <file filename="file1.txt">
@@ -37,12 +84,14 @@ Goodbye World
 </file>
 ```
 
+---
+
 ## Installation (from source)
 
-* Requires Python 3.8+, pip
+* Requires Python 3.8+ and pip.
 
 ```bash
-git clone https://github.com/yourusername/code2clip.git
+git clone https://github.com/kobrasadetin/code2clip.git
 cd code2clip
 python -m venv venv
 # Windows: venv\Scripts\activate
@@ -51,29 +100,26 @@ pip install -r requirements.txt
 python code2clip.py
 ```
 
-## macOS App (unsigned)
+---
 
-Download the `.app` from Releases, then:
+## Packaging (developers)
 
-```bash
-xattr -d com.apple.quarantine /Applications/Code2Clip.app   # remove quarantine
-open /Applications/Code2Clip.app                            # run
-# If Gatekeeper complains, run the binary directly:
-chmod +x /Applications/Code2Clip.app/Contents/MacOS/code2clip
-/Applications/Code2Clip.app/Contents/MacOS/code2clip
-```
+This repo uses a PyInstaller for a **onedir** build (no UPX). CI writes a `code2clip_version.txt` and then runs the spec.
 
-## Packaging (optional)
+Build locally:
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed code2clip.py
-# binary in dist/
+pyinstaller --clean --noconfirm code2clip.spec
+# Output: dist/code2clip/...
+# Windows: dist/code2clip/code2clip.exe
+# macOS:   dist/code2clip/code2clip (wrapped into .app in packaging step)
+# Linux:   dist/code2clip/code2clip
 ```
 
 ## Contributing
 
-Contributions are welcome! To report bugs, suggest features, or submit pull requests, please check out the [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributions are welcome! To report bugs, suggest features, or submit pull requests, please see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -85,8 +131,6 @@ This project is licensed under the [MIT License](LICENSE).
 
 ## Acknowledgements
 
-- [PyQt5](https://www.riverbankcomputing.com/software/pyqt/intro/) – GUI framework
-- [chardet](https://github.com/chardet/chardet) – Encoding detection library
-- [paramiko](https://www.paramiko.org/) - pure-Python implementation of the SSHv2 protocol
-
----
+* [PyQt5](https://www.riverbankcomputing.com/software/pyqt/intro/) – GUI framework
+* [chardet](https://github.com/chardet/chardet) – Encoding detection library
+* [paramiko](https://www.paramiko.org/) – SSH/SFTP library

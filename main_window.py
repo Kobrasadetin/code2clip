@@ -1,4 +1,3 @@
-# main_window.py (excerpt – only the changed structure)
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QToolButton, QVBoxLayout, QMessageBox
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import QSize, Qt
@@ -11,7 +10,7 @@ from main_window_styles import apply_app_palette, update_tab_close_buttons, enab
 class MainWindow(QMainWindow):
     def __init__(self, ctx: AppContext):
         super().__init__()
-        self.ctx = ctx  # <-- new
+        self.ctx = ctx
 
         # Lazy-import tabs only when GUI is starting up
         from concatenator_tab import ConcatenatorTab
