@@ -7,6 +7,7 @@ from unittest.mock import patch
 from tests.test_file_concatenator import DummyQApplication, modules
 
 os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
+os.environ.setdefault("QT_STYLE_OVERRIDE", "Fusion") 
 os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
 
 class EscapeSequenceTest(unittest.TestCase):

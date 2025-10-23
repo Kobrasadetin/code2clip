@@ -1,6 +1,7 @@
 import sys
 import platform
 import ctypes
+from functools import partial
 from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -28,20 +29,11 @@ import os
 from utils import resource_path
 from ssh_utilities import SSHConnectionManager
 
-def enable_os_override_title_bar(hwnd):
-    """Force a dark title bar on Windows 10 (1809+) when dark mode is enabled."""
-    if platform.system() == "Windows":
-        try:
-            DWMWA_USE_IMMERSIVE_DARK_MODE = 20  # Supported on Windows 10 1809+ and Windows 11
-            is_dark_mode = ctypes.c_int(1)
-            ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                hwnd,
-                DWMWA_USE_IMMERSIVE_DARK_MODE,
-                ctypes.byref(is_dark_mode),
-                ctypes.sizeof(is_dark_mode)
-            )
-        except Exception as e:
-            print("Could not enable dark title bar:", e, file=sys.stderr)
+from main_window_styles import (
+    apply_app_palette,
+    update_tab_close_buttons,
+    enable_os_override_title_bar,
+)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -110,7 +102,7 @@ class MainWindow(QMainWindow):
         self.settings_tab = SettingsTab(self)
         self.add_workspace_tab()
         self.tabs.addTab(self.settings_tab, "Settings")
-        self._update_tab_close_buttons()
+        update_tab_close_buttons(self.tabs, self.settings_tab, self._close_workspace_widget)
 
         self.settings_tab.update_ssh_status(self.is_ssh_connected())
 
@@ -140,7 +132,7 @@ class MainWindow(QMainWindow):
         else:
             index = self.tabs.addTab(new_tab, title)
         self.tabs.setCurrentIndex(index)
-        self._update_tab_close_buttons()
+        update_tab_close_buttons(self.tabs, self.settings_tab, self._close_workspace_widget)
         return new_tab
 
     def close_workspace_tab(self, index: int) -> None:
@@ -155,25 +147,7 @@ class MainWindow(QMainWindow):
         if not self.workspace_tabs:
             self.add_workspace_tab()
         else:
-            self._update_tab_close_buttons()
-
-    def _update_tab_close_buttons(self) -> None:
-        tab_bar = self.tabs.tabBar()
-        if hasattr(self, "settings_tab"):
-            settings_index = self.tabs.indexOf(self.settings_tab)
-            if settings_index != -1:
-                for side in (QTabBar.LeftSide, QTabBar.RightSide):
-                    tab_bar.setTabButton(settings_index, side, None)
-        close_icon = self.style().standardIcon(QStyle.SP_TitleBarCloseButton)
-        for index in range(self.tabs.count()):
-            widget = self.tabs.widget(index)
-            if widget is self.settings_tab:
-                continue
-            button = QToolButton(tab_bar)
-            button.setAutoRaise(True)
-            button.setIcon(close_icon)
-            button.clicked.connect(lambda _, w=widget: self._close_workspace_widget(w))
-            tab_bar.setTabButton(index, QTabBar.RightSide, button)
+            update_tab_close_buttons(self.tabs, self.settings_tab, self._close_workspace_widget)
 
     def _close_workspace_widget(self, widget: QWidget) -> None:
         index = self.tabs.indexOf(widget)
@@ -181,8 +155,10 @@ class MainWindow(QMainWindow):
             self.close_workspace_tab(index)
 
     def redraw(self):
-        """Redraw all dynamic UI elements if necessary."""
         self.apply_dark_mode()
+        # refresh tab close icons to match any palette switch
+        update_tab_close_buttons(self.tabs, self.settings_tab, self._close_workspace_widget)
+
         for tab in self.workspace_tabs:
             tab.redraw()
         self.settings_tab.redraw()
@@ -190,24 +166,7 @@ class MainWindow(QMainWindow):
     def apply_dark_mode(self):
         """Applies the dark palette if dark mode is enabled; otherwise, reverts to the standard palette."""
         app = QApplication.instance()
-        if self.use_dark_mode:
-            dark_palette = QPalette()
-            dark_palette.setColor(QPalette.Window, QColor(53, 53, 53))
-            dark_palette.setColor(QPalette.WindowText, QColor(255, 255, 255))
-            dark_palette.setColor(QPalette.Base, QColor(25, 25, 25))
-            dark_palette.setColor(QPalette.AlternateBase, QColor(53, 53, 53))
-            dark_palette.setColor(QPalette.ToolTipBase, QColor(25, 25, 25))
-            dark_palette.setColor(QPalette.ToolTipText, QColor(255, 255, 255))
-            dark_palette.setColor(QPalette.Text, QColor(255, 255, 255))
-            dark_palette.setColor(QPalette.Button, QColor(53, 53, 53))
-            dark_palette.setColor(QPalette.ButtonText, QColor(255, 255, 255))
-            dark_palette.setColor(QPalette.BrightText, QColor(255, 0, 0))
-            dark_palette.setColor(QPalette.Link, QColor(42, 130, 218))
-            dark_palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
-            dark_palette.setColor(QPalette.HighlightedText, QColor(0, 0, 0))
-            app.setPalette(dark_palette)
-        else:
-            app.setPalette(app.style().standardPalette())
+        apply_app_palette(app, self.use_dark_mode)
 
     def save_settings(self):
         """Persist settings to disk."""

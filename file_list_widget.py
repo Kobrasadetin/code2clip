@@ -72,19 +72,17 @@ class FileListWidget(QListWidget):
         item = self.itemAt(event.pos())
         menu = QMenu(self)
 
-        undo_action = menu.addAction("Undo")
-        can_undo = self._can_undo() if self._can_undo else False
-        undo_action.setEnabled(can_undo)
-        if can_undo and self._undo_handler:
-            undo_action.triggered.connect(self._undo_handler)
+        if item:           
+            remove_action = menu.addAction("Remove File")
+            remove_action.triggered.connect(partial(self.remove_item, item))
 
-        redo_action = menu.addAction("Redo")
-        can_redo = self._can_redo() if self._can_redo else False
-        redo_action.setEnabled(can_redo)
-        if can_redo and self._redo_handler:
-            redo_action.triggered.connect(self._redo_handler)
+            encoding_action = menu.addAction("Check Encoding")
+            encoding_action.triggered.connect(partial(self.check_encoding, item))
 
-        menu.addSeparator()
+            metadata_action = menu.addAction("View Metadata")
+            metadata_action.triggered.connect(partial(self.view_metadata, item))
+
+            menu.addSeparator()
 
         add_clipboard_action = menu.addAction("Add File(s) From Clipboard")
         add_clipboard_action.triggered.connect(self.add_clipboard_files)
@@ -104,16 +102,19 @@ class FileListWidget(QListWidget):
         remove_all_action = menu.addAction("Remove All Files")
         remove_all_action.triggered.connect(self.remove_all)
 
-        if item:
-            menu.addSeparator()
-            remove_action = menu.addAction("Remove File")
-            remove_action.triggered.connect(partial(self.remove_item, item))
+        menu.addSeparator()
 
-            encoding_action = menu.addAction("Check Encoding")
-            encoding_action.triggered.connect(partial(self.check_encoding, item))
+        undo_action = menu.addAction("Undo")
+        can_undo = self._can_undo() if self._can_undo else False
+        undo_action.setEnabled(can_undo)
+        if can_undo and self._undo_handler:
+            undo_action.triggered.connect(self._undo_handler)
 
-            metadata_action = menu.addAction("View Metadata")
-            metadata_action.triggered.connect(partial(self.view_metadata, item))
+        redo_action = menu.addAction("Redo")
+        can_redo = self._can_redo() if self._can_redo else False
+        redo_action.setEnabled(can_redo)
+        if can_redo and self._redo_handler:
+            redo_action.triggered.connect(self._redo_handler)
 
         menu.exec_(self.mapToGlobal(event.pos()))
 

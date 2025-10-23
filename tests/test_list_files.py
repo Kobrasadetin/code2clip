@@ -5,6 +5,7 @@ import unittest
 from utils import list_files
 
 os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
+os.environ.setdefault("QT_STYLE_OVERRIDE", "Fusion") 
 os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
 
 class TestListFiles(unittest.TestCase):

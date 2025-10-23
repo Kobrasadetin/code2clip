@@ -4,6 +4,7 @@ import sys
 import types
 import os
 os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
+os.environ.setdefault("QT_STYLE_OVERRIDE", "Fusion") 
 os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
 
 try:  # pragma: no cover - used only when paramiko isn't installed

@@ -2,6 +2,7 @@ import os
 import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
+os.environ.setdefault("QT_STYLE_OVERRIDE", "Fusion") 
 os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
 
 from PyQt5.QtWidgets import QApplication

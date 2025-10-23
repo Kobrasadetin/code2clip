@@ -6,6 +6,7 @@ from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
+os.environ.setdefault("QT_STYLE_OVERRIDE", "Fusion") 
 os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
 
 # Create dummy Qt modules so file_concatenator imports succeed without PyQt5

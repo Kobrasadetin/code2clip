@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import QApplication
 from concatenator_tab import ConcatenatorTab, PRESETS
 
 os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
+os.environ.setdefault("QT_STYLE_OVERRIDE", "Fusion") 
 os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
 
 class DummySettings(dict):
