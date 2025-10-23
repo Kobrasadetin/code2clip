@@ -8,39 +8,56 @@ from PyQt5.QtWidgets import QApplication
 from concatenator_tab import ConcatenatorTab, PRESETS
 
 os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
-os.environ.setdefault("QT_STYLE_OVERRIDE", "Fusion") 
+os.environ.setdefault("QT_STYLE_OVERRIDE", "Fusion")
 os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
 
-class DummySettings(dict):
-    def value(self, key, default=None):
-        return self.get(key, default)
 
-    def setValue(self, key, value):
-        self[key] = value
+class DummySettings:
+    def __init__(self):
+        self.last_preset = "Markdown"
+        self.custom_prefix = PRESETS["Custom"]["prefix"]
+        self.custom_suffix = PRESETS["Custom"]["suffix"]
+        self.show_success_message = True
+        self.interpret_escape_sequences = True
+        self.use_dark_mode = False
+        self.extension_allow_all = True
+        self.extension_filters = []
+
+    def set_last_preset(self, preset: str):
+        self.last_preset = preset
+
+    def set_custom_prefix(self, prefix: str):
+        self.custom_prefix = prefix
+
+    def set_custom_suffix(self, suffix: str):
+        self.custom_suffix = suffix
 
 
-class DummySSH:
-    def __init__(self, configured: bool):
-        self._configured = configured
-        self.host = None
-        self.username = None
+class DummySSHManager:
+    def __init__(self, connected: bool):
+        self._connected = connected
+        self.host = "remote" if connected else None
 
-    def is_configured(self):
-        return self._configured
+    def is_connected(self) -> bool:
+        return self._connected
 
-    def is_connected(self):
-        return self._configured
+    def path_exists(self, _path: str) -> bool:
+        return True
 
 
-def create_main_window_stub(ssh_enabled: bool):
+class DummySSHController:
+    def __init__(self, connected: bool):
+        self._connected = connected
+        self.manager = DummySSHManager(connected)
+
+    def is_connected(self) -> bool:
+        return self._connected
+
+
+def create_ctx_stub(ssh_enabled: bool):
     return SimpleNamespace(
         settings=DummySettings(),
-        use_dark_mode=False,
-        ssh_manager=DummySSH(ssh_enabled),
-        extension_allow_all=True,
-        extension_filters=[],
-        show_success_message=True,
-        interpret_escape_sequences=True,
+        ssh=DummySSHController(ssh_enabled),
     )
 
 
@@ -52,8 +69,8 @@ class TestSelectRootPath(unittest.TestCase):
     @mock.patch("concatenator_tab.QInputDialog.getText", return_value=("/home/user", True))
     @mock.patch("concatenator_tab.QFileDialog.getExistingDirectory")
     def test_remote_dialog_used_when_ssh_enabled(self, mock_get_dir, mock_get_text):
-        main_window = create_main_window_stub(True)
-        tab = ConcatenatorTab(main_window)
+        ctx = create_ctx_stub(True)
+        tab = ConcatenatorTab(ctx)
         tab.list_widget.files = ["/home/user/a", "/home/user/b"]
         tab.select_root_path()
         mock_get_text.assert_called_once_with(
@@ -65,8 +82,8 @@ class TestSelectRootPath(unittest.TestCase):
     @mock.patch("concatenator_tab.QFileDialog.getExistingDirectory", return_value="/local")
     @mock.patch("concatenator_tab.QInputDialog.getText")
     def test_local_dialog_used_when_ssh_disabled(self, mock_get_text, mock_get_dir):
-        main_window = create_main_window_stub(False)
-        tab = ConcatenatorTab(main_window)
+        ctx = create_ctx_stub(False)
+        tab = ConcatenatorTab(ctx)
         tab.select_root_path()
         mock_get_dir.assert_called_once()
         mock_get_text.assert_not_called()
@@ -79,7 +96,7 @@ class TestTabHistory(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def create_tab(self):
-        return ConcatenatorTab(create_main_window_stub(False))
+        return ConcatenatorTab(create_ctx_stub(False))
 
     def test_undo_redo_file_changes(self):
         tab = self.create_tab()

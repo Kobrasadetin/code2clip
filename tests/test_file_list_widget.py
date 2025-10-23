@@ -1,18 +1,12 @@
 import sys
 import unittest
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
-os.environ.setdefault("QT_STYLE_OVERRIDE", "Fusion") 
+os.environ.setdefault("QT_STYLE_OVERRIDE", "Fusion")
 os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
-
-class DummyMainWindow:
-    def __init__(self, allow_all=False, filters=None):
-        self.extension_allow_all = allow_all
-        self.extension_filters = [f.lower() for f in (filters or [])]
-        self.ssh_manager = None
 
 class FileListWidgetTest(unittest.TestCase):
     def setUp(self):
@@ -50,7 +44,12 @@ class FileListWidgetTest(unittest.TestCase):
 
     def create_widget(self, allow_all=False, filters=None):
         obj = self.fw_module.FileListWidget.__new__(self.fw_module.FileListWidget)
-        obj.main_window = DummyMainWindow(allow_all, filters)
+        settings = SimpleNamespace(
+            extension_allow_all=allow_all,
+            extension_filters=[f.lower() for f in (filters or [])],
+        )
+        ssh = SimpleNamespace(manager=None, is_connected=lambda: False)
+        obj.ctx = SimpleNamespace(settings=settings, ssh=ssh)
         obj.files = []
         obj.root_path = None
         obj.update_list_display = lambda: None

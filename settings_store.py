@@ -48,6 +48,10 @@ class AppSettings(QObject):
         self.ssh_host: str = self._qs.value("ssh_host", "", type=str)
         self.ssh_username: str = self._qs.value("ssh_username", "", type=str)
 
+        self.last_preset: str = self._qs.value("last_preset", "Markdown", type=str)
+        self.custom_prefix: str = self._qs.value("custom_prefix", "", type=str)
+        self.custom_suffix: str = self._qs.value("custom_suffix", "", type=str)
+
     # -------- persist ----------
     def save(self) -> None:
         self._qs.setValue("use_dark_mode", self.use_dark_mode)
@@ -63,6 +67,9 @@ class AppSettings(QObject):
 
         self._qs.setValue("ssh_host", self.ssh_host or "")
         self._qs.setValue("ssh_username", self.ssh_username or "")
+        self._qs.setValue("last_preset", self.last_preset or "")
+        self._qs.setValue("custom_prefix", self.custom_prefix or "")
+        self._qs.setValue("custom_suffix", self.custom_suffix or "")
         self.changed.emit()
 
     # -------- setters with signals ----------
@@ -112,6 +119,21 @@ class AppSettings(QObject):
         self.extension_group_texts = {n: ",".join(v) for n, v in EXTENSION_GROUP_DEFAULTS.items()}
         self.extension_groups = {n: list(v) for n, v in EXTENSION_GROUP_DEFAULTS.items()}
         self._rebuild_filters()
+
+    def set_last_preset(self, preset: str):
+        if self.last_preset != preset:
+            self.last_preset = preset
+            self.save()
+
+    def set_custom_prefix(self, prefix: str):
+        if self.custom_prefix != prefix:
+            self.custom_prefix = prefix
+            self.save()
+
+    def set_custom_suffix(self, suffix: str):
+        if self.custom_suffix != suffix:
+            self.custom_suffix = suffix
+            self.save()
 
     def _rebuild_filters(self):
         self.extension_filters = build_extension_filters(

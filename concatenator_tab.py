@@ -41,10 +41,10 @@ class TabState:
     preset: str
 
 class ConcatenatorTab(QWidget):
-    def __init__(self, main_window):
+    def __init__(self, ctx):
         super().__init__()
-        self.main_window = main_window  # To access settings from the MainWindow.
-        self.settings = main_window.settings
+        self.ctx = ctx
+        self.settings = ctx.settings
         self.root_path = None
         self.loading_preset = False
         self._restoring_state = False
@@ -67,7 +67,7 @@ class ConcatenatorTab(QWidget):
 
         # File list
         self.list_widget = FileListWidget(
-            self.main_window,
+            self.ctx,
             change_callback=self.on_file_list_changed,
         )
         layout.addWidget(self.list_widget)
@@ -125,8 +125,7 @@ class ConcatenatorTab(QWidget):
     
         # --- helpers ---------------------------------------------------------
     def _is_remote(self) -> bool:
-        ssh = getattr(self.main_window, "ssh_manager", None)
-        return bool(ssh and ssh.is_connected())
+        return self.ctx.ssh.is_connected()
 
     def _to_posix(self, path: str) -> str:
         # Ensure forward slashes for remote paths
@@ -227,12 +226,12 @@ class ConcatenatorTab(QWidget):
         # Suppress change handling during load
         self.loading_preset = True
         # Load last used preset or default to Markdown
-        last = self.settings.value("last_preset", "Markdown")
+        last = self.settings.last_preset or "Markdown"
         if last not in PRESETS:
             last = "Markdown"
         # Load custom values if any
-        custom_prefix = self.settings.value("custom_prefix", PRESETS["Custom"]["prefix"])
-        custom_suffix = self.settings.value("custom_suffix", PRESETS["Custom"]["suffix"])
+        custom_prefix = self.settings.custom_prefix or PRESETS["Custom"]["prefix"]
+        custom_suffix = self.settings.custom_suffix or PRESETS["Custom"]["suffix"]
         PRESETS["Custom"]["prefix"] = custom_prefix
         PRESETS["Custom"]["suffix"] = custom_suffix
         # Set combo and fields
@@ -253,10 +252,10 @@ class ConcatenatorTab(QWidget):
 
     def save_preset_settings(self, preset_name):
         # Persist preset and custom values
-        self.settings.setValue("last_preset", preset_name)
+        self.settings.set_last_preset(preset_name)
         if preset_name == "Custom":
-            self.settings.setValue("custom_prefix", self.prefix_input.text())
-            self.settings.setValue("custom_suffix", self.suffix_input.text())
+            self.settings.set_custom_prefix(self.prefix_input.text())
+            self.settings.set_custom_suffix(self.suffix_input.text())
 
     def redraw(self):
         """Redraw dynamic UI elements based on theme."""
@@ -264,7 +263,7 @@ class ConcatenatorTab(QWidget):
 
     def update_label_color(self):
         """Update instruction label color based on theme."""
-        text_color = "white" if self.main_window.use_dark_mode else "black"
+        text_color = "white" if self.ctx.settings.use_dark_mode else "black"
         self.instruction_label.setStyleSheet(f"color: {text_color}; font-size: 16px;")
 
     def dragEnterEvent(self, event: QDragEnterEvent):
@@ -281,13 +280,13 @@ class ConcatenatorTab(QWidget):
         if event.mimeData().hasText():
             lines = event.mimeData().text().strip().splitlines()
             for line in lines:
-                ssh = self.main_window.ssh_manager
-                host = ssh.host if (ssh and ssh.is_connected()) else None
+                ssh = self.ctx.ssh.manager
+                host = ssh.host if (ssh and self.ctx.ssh.is_connected()) else None
                 path = convert_wsl_path(line.strip(), host)
                 if self._is_remote():
                     path = self._to_posix(path)
                 if path:
-                    if ssh and ssh.is_connected() and path.startswith("/"):
+                    if ssh and self.ctx.ssh.is_connected() and path.startswith("/"):
                         if ssh.path_exists(path):
                             self.list_widget.add_file(path, enforce_filter=False)
                             added = True
@@ -300,13 +299,13 @@ class ConcatenatorTab(QWidget):
         # URL drops (some platforms provide both text and url data)
         if not added and event.mimeData().hasUrls():
             for url in event.mimeData().urls():
-                ssh = self.main_window.ssh_manager
-                host = ssh.host if (ssh and ssh.is_connected()) else None
+                ssh = self.ctx.ssh.manager
+                host = ssh.host if (ssh and self.ctx.ssh.is_connected()) else None
                 path = convert_wsl_path(url.toLocalFile(), host)
                 if self._is_remote():
                     path = self._to_posix(path)
                 if path:
-                    if ssh and ssh.is_connected() and path.startswith("/"):
+                    if ssh and self.ctx.ssh.is_connected() and path.startswith("/"):
                         if ssh.path_exists(path):
                             self.list_widget.add_file(path, enforce_filter=False)
                             added = True
@@ -413,7 +412,7 @@ class ConcatenatorTab(QWidget):
             self.root_path,
             prefix,
             suffix,
-            show_success_message=self.main_window.show_success_message,
-            interpret_escape_sequences=self.main_window.interpret_escape_sequences,
-            ssh_manager=self.main_window.ssh_manager,
+            show_success_message=self.ctx.settings.show_success_message,
+            interpret_escape_sequences=self.ctx.settings.interpret_escape_sequences,
+            ssh_manager=self.ctx.ssh.manager,
         )
