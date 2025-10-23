@@ -5,12 +5,14 @@ from PyQt5.QtWidgets import (
     QApplication,
     QMainWindow,
     QMessageBox,
+    QTabBar,
     QTabWidget,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 from PyQt5.QtGui import QPalette, QColor, QIcon
-from PyQt5.QtCore import QSettings, QSize
+from PyQt5.QtCore import QSettings, QSize, Qt
 
 from extension_filters import (
     EXTENSION_GROUP_DEFAULTS,
@@ -91,10 +93,22 @@ class MainWindow(QMainWindow):
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         self.tabs = QTabWidget()
-        self.concatenator_tab = ConcatenatorTab(self)
+        self.tabs.setTabsClosable(True)
+        self.tabs.tabCloseRequested.connect(self.close_workspace_tab)
+
+        self.new_tab_button = QToolButton()
+        self.new_tab_button.setText("+")
+        self.new_tab_button.clicked.connect(self.add_workspace_tab)
+        self.tabs.setCornerWidget(self.new_tab_button, Qt.TopRightCorner)
+
+        self._concatenator_tab_cls = ConcatenatorTab
+        self.workspace_tabs: list = []
+        self.workspace_counter = 0
+
         self.settings_tab = SettingsTab(self)
-        self.tabs.addTab(self.concatenator_tab, "Concatenator")
+        self.add_workspace_tab()
         self.tabs.addTab(self.settings_tab, "Settings")
+        self._update_tab_close_buttons()
 
         self.settings_tab.update_ssh_status(self.is_ssh_connected())
 
@@ -109,10 +123,51 @@ class MainWindow(QMainWindow):
         self.redraw()
 
 
+    def add_workspace_tab(self):
+        tab_cls = getattr(self, "_concatenator_tab_cls", None)
+        if tab_cls is None:
+            from concatenator_tab import ConcatenatorTab as tab_cls  # Lazy import fallback
+            self._concatenator_tab_cls = tab_cls
+        new_tab = tab_cls(self)
+        self.workspace_tabs.append(new_tab)
+        self.workspace_counter += 1
+        title = f"Workspace {self.workspace_counter}"
+        settings_index = self.tabs.indexOf(self.settings_tab) if hasattr(self, "settings_tab") else -1
+        if settings_index >= 0:
+            index = self.tabs.insertTab(settings_index, new_tab, title)
+        else:
+            index = self.tabs.addTab(new_tab, title)
+        self.tabs.setCurrentIndex(index)
+        self._update_tab_close_buttons()
+        return new_tab
+
+    def close_workspace_tab(self, index: int) -> None:
+        widget = self.tabs.widget(index)
+        if widget is None or widget is self.settings_tab:
+            return
+        if widget not in self.workspace_tabs:
+            return
+        self.workspace_tabs.remove(widget)
+        self.tabs.removeTab(index)
+        widget.deleteLater()
+        if not self.workspace_tabs:
+            self.add_workspace_tab()
+        else:
+            self._update_tab_close_buttons()
+
+    def _update_tab_close_buttons(self) -> None:
+        tab_bar = self.tabs.tabBar()
+        if hasattr(self, "settings_tab"):
+            settings_index = self.tabs.indexOf(self.settings_tab)
+            if settings_index != -1:
+                for side in (QTabBar.LeftSide, QTabBar.RightSide):
+                    tab_bar.setTabButton(settings_index, side, None)
+
     def redraw(self):
-        self.apply_dark_mode()
         """Redraw all dynamic UI elements if necessary."""
-        self.concatenator_tab.redraw()
+        self.apply_dark_mode()
+        for tab in self.workspace_tabs:
+            tab.redraw()
         self.settings_tab.redraw()
 
     def apply_dark_mode(self):

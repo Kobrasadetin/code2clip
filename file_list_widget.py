@@ -1,20 +1,28 @@
 import os
+from typing import Callable, Iterable, Optional
+
 import chardet
 from PyQt5.QtWidgets import (
+    QApplication,
+    QFileDialog,
     QListWidget,
     QListWidgetItem,
     QMenu,
     QMessageBox,
-    QFileDialog,
-    QApplication,
 )
 from PyQt5.QtGui import QClipboard
 from PyQt5.QtCore import QDateTime, Qt
+
 from wsl_utilities import convert_wsl_path
 from utils import safe_relpath, list_files
 
 class FileListWidget(QListWidget):
-    def __init__(self, main_window=None, parent=None):
+    def __init__(
+        self,
+        main_window=None,
+        parent=None,
+        change_callback: Optional[Callable[[], None]] = None,
+    ):
         super().__init__(parent)
         self.main_window = main_window
         # Enable drag and drop reordering within the list
@@ -26,6 +34,21 @@ class FileListWidget(QListWidget):
         self.setDragDropMode(QListWidget.InternalMove)
         self.files = []
         self.root_path = None
+        self._change_callback = change_callback
+
+    def set_change_callback(self, callback: Optional[Callable[[], None]]) -> None:
+        self._change_callback = callback
+
+    def _notify_change(self) -> None:
+        callback = self.__dict__.get("_change_callback")
+        if callback:
+            callback()
+
+    def set_files(self, files: Iterable[str], notify: bool = True) -> None:
+        self.files = list(files)
+        self.update_list_display()
+        if notify:
+            self._notify_change()
 
     def contextMenuEvent(self, event):
         item = self.itemAt(event.pos())
@@ -103,8 +126,11 @@ class FileListWidget(QListWidget):
             )
             allowed_files = [f for f in files if self.is_allowed(f)]
             if allowed_files:
-                for file_path in files:
-                    self.add_file(file_path)
+                new_files = [f for f in files if f not in self.files]
+                if new_files:
+                    self.files.extend(new_files)
+                    self.update_list_display()
+                    self._notify_change()
             else:
                 all_files = list_files(folder_path, None)
                 if not all_files:
@@ -149,10 +175,12 @@ class FileListWidget(QListWidget):
         row = self.row(item)
         del self.files[row]
         self.takeItem(row)
+        self._notify_change()
 
     def remove_all(self):
         self.files.clear()
         self.update_list_display()
+        self._notify_change()
 
     def check_encoding(self, item):
         filepath = item.data(Qt.UserRole)
@@ -213,6 +241,7 @@ class FileListWidget(QListWidget):
             return
         self.files.append(filepath)
         self.update_list_display()
+        self._notify_change()
 
     def is_allowed(self, filepath: str) -> bool:
         if not self.main_window:
@@ -255,3 +284,4 @@ class FileListWidget(QListWidget):
             filepath = item.data(Qt.UserRole)
             new_files.append(filepath)
         self.files = new_files  # Update the internal list
+        self._notify_change()
