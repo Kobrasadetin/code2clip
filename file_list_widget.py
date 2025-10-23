@@ -20,12 +20,12 @@ from utils import safe_relpath, list_files
 class FileListWidget(QListWidget):
     def __init__(
         self,
-        main_window=None,
+        ctx=None,
         parent=None,
         change_callback: Optional[Callable[[], None]] = None,
     ):
         super().__init__(parent)
-        self.main_window = main_window
+        self.ctx = ctx
         # Enable drag and drop reordering within the list
         self.setAcceptDrops(True)
         self.setDragEnabled(True)
@@ -124,8 +124,9 @@ class FileListWidget(QListWidget):
         # split text by newline and filter out empty strings
         file_paths = list(filter(None, text.split("\n")))
         not_found_files = []
-        ssh = self.main_window.ssh_manager if self.main_window else None
-        host = ssh.host if (ssh and ssh.is_connected()) else None
+        ssh_ctrl = getattr(self.ctx, "ssh", None)
+        ssh = ssh_ctrl.manager if ssh_ctrl else None
+        host = ssh.host if (ssh and ssh_ctrl and ssh_ctrl.is_connected()) else None
         for file_path in file_paths:
             original = file_path
             file_path = self.strip_quotes(file_path)
@@ -154,9 +155,11 @@ class FileListWidget(QListWidget):
 
     def add_folder(self, folder_path=None):
         if folder_path:
+            settings = getattr(self.ctx, "settings", None)
+            filters = settings.extension_filters if settings else None
             files = list_files(
                 folder_path,
-                self.main_window.extension_filters if self.main_window else None,
+                filters,
             )
             allowed_files = [f for f in files if self.is_allowed(f)]
             if allowed_files:
@@ -278,11 +281,12 @@ class FileListWidget(QListWidget):
         self._notify_change()
 
     def is_allowed(self, filepath: str) -> bool:
-        if not self.main_window:
+        settings = getattr(self.ctx, "settings", None)
+        if not settings:
             return True
-        if self.main_window.extension_allow_all:
+        if settings.extension_allow_all:
             return True
-        extensions = self.main_window.extension_filters
+        extensions = settings.extension_filters
         if not extensions:
             return False
         return os.path.splitext(filepath)[1].lower() in extensions

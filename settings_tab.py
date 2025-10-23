@@ -1,23 +1,24 @@
-from PyQt5.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QCheckBox,
-    QLabel,
-    QLineEdit,
-    QPushButton,
-)
+# settings_tab.py (excerpt – key changes)
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QCheckBox, QLabel, QLineEdit, QPushButton
 from PyQt5.QtCore import Qt
-
-from utils import get_app_version
 from functools import partial
 from extension_filters import EXTENSION_GROUP_DEFAULTS
+from app_context import AppContext
+
+def default_password_prompt(parent=None, user="", host=""):
+    from PyQt5.QtWidgets import QInputDialog, QLineEdit
+    pwd, ok = QInputDialog.getText(parent, "SSH Password", f"Enter password for {user}@{host}", QLineEdit.Password)
+    return pwd if ok else None
 
 class SettingsTab(QWidget):
-    def __init__(self, main_window):
+    def __init__(self, ctx: AppContext):
         super().__init__()
-        self.main_window = main_window  # Access MainWindow settings.
+        self.ctx = ctx
         self.init_ui()
+
+        # Keep UI in sync with signals (if settings change elsewhere)
+        self.ctx.settings.themeChanged.connect(lambda _: self.redraw())
+        self.ctx.ssh.statusChanged.connect(self.update_ssh_status)
 
     def init_ui(self):
         outer_layout = QVBoxLayout()
@@ -25,25 +26,25 @@ class SettingsTab(QWidget):
 
         # Toggles
         self.success_checkbox = QCheckBox("Show success message after concatenation")
-        self.success_checkbox.setChecked(self.main_window.show_success_message)
-        self.success_checkbox.stateChanged.connect(self.toggle_success_message)
+        self.success_checkbox.setChecked(self.ctx.settings.show_success_message)
+        self.success_checkbox.stateChanged.connect(lambda s: self.ctx.settings.set_show_success_message(s == Qt.Checked))
         inner_layout.addWidget(self.success_checkbox)
 
         self.escape_checkbox = QCheckBox("Interpret escape sequences (\\n, \\t, etc.)")
-        self.escape_checkbox.setChecked(self.main_window.interpret_escape_sequences)
-        self.escape_checkbox.stateChanged.connect(self.toggle_escape_sequences)
+        self.escape_checkbox.setChecked(self.ctx.settings.interpret_escape_sequences)
+        self.escape_checkbox.stateChanged.connect(lambda s: self.ctx.settings.set_interpret_escape_sequences(s == Qt.Checked))
         inner_layout.addWidget(self.escape_checkbox)
 
         self.dark_mode_checkbox = QCheckBox("Enable Dark Mode")
-        self.dark_mode_checkbox.setChecked(self.main_window.use_dark_mode)
-        self.dark_mode_checkbox.stateChanged.connect(self.toggle_dark_mode)
+        self.dark_mode_checkbox.setChecked(self.ctx.settings.use_dark_mode)
+        self.dark_mode_checkbox.stateChanged.connect(lambda s: self.ctx.settings.set_use_dark_mode(s == Qt.Checked))
         inner_layout.addWidget(self.dark_mode_checkbox)
 
         ssh_label = QLabel("SSH Connection:")
         inner_layout.addWidget(ssh_label)
         ssh_row = QHBoxLayout()
-        self.ssh_host = QLineEdit(self.main_window.ssh_manager.host or "")
-        self.ssh_user = QLineEdit(self.main_window.ssh_manager.username or "")
+        self.ssh_host = QLineEdit(self.ctx.settings.ssh_host or "")
+        self.ssh_user = QLineEdit(self.ctx.settings.ssh_username or "")
         self.ssh_host.setPlaceholderText("host")
         self.ssh_user.setPlaceholderText("username")
         self.ssh_host.editingFinished.connect(self.update_ssh_settings)
@@ -59,28 +60,29 @@ class SettingsTab(QWidget):
         ssh_status_row.addWidget(self.ssh_status_indicator)
         ssh_status_row.addWidget(self.ssh_status_text)
         ssh_status_row.addStretch()
+
         self.connect_button = QPushButton("Connect")
-        self.connect_button.clicked.connect(self.main_window.connect_to_ssh)
+        self.connect_button.clicked.connect(self.ctx.ssh.connect)
         ssh_status_row.addWidget(self.connect_button)
         inner_layout.addLayout(ssh_status_row)
-        self.update_ssh_status(self.main_window.is_ssh_connected())
+        self.update_ssh_status(self.ctx.ssh.is_connected())
 
         # Extension filters
         ext_label = QLabel("File Type Filters:")
         inner_layout.addWidget(ext_label)
         self.allow_all_checkbox = QCheckBox("Allow all file types")
-        self.allow_all_checkbox.setChecked(self.main_window.extension_allow_all)
+        self.allow_all_checkbox.setChecked(self.ctx.settings.extension_allow_all)
         self.allow_all_checkbox.stateChanged.connect(self.on_allow_all_changed)
         inner_layout.addWidget(self.allow_all_checkbox)
 
-        self.category_boxes: dict[str, QCheckBox] = {}
-        self.extension_fields: dict[str, QLineEdit] = {}
+        self.category_boxes = {}
+        self.extension_fields = {}
         for name in EXTENSION_GROUP_DEFAULTS:
             row = QHBoxLayout()
             box = QCheckBox(name)
-            box.setChecked(name in self.main_window.extension_categories)
+            box.setChecked(name in self.ctx.settings.extension_categories)
             box.stateChanged.connect(self.on_categories_changed)
-            field = QLineEdit(self.main_window.extension_group_texts[name])
+            field = QLineEdit(self.ctx.settings.extension_group_texts[name])
             field.textChanged.connect(partial(self.on_extensions_changed, name))
             row.addWidget(box)
             row.addWidget(field)
@@ -92,15 +94,13 @@ class SettingsTab(QWidget):
         reset_btn.clicked.connect(self.reset_extensions)
         inner_layout.addWidget(reset_btn)
 
-        # Add inner layout to a widget to control expansion
+        # Layout
         content_widget = QWidget()
         content_widget.setLayout(inner_layout)
         outer_layout.addWidget(content_widget)
-
-        # Stretch fills all available space
         outer_layout.addStretch()
 
-        # Version label pinned to the very bottom
+        from utils import get_app_version
         version_label = QLabel(f"Version: {get_app_version()}")
         version_label.setStyleSheet("font-size: 14px; color: gray;")
         version_label.setAlignment(Qt.AlignRight)
@@ -108,23 +108,9 @@ class SettingsTab(QWidget):
 
         self.setLayout(outer_layout)
 
-    def toggle_success_message(self, state):
-        self.main_window.show_success_message = (state == Qt.Checked)
-        self.main_window.save_settings()
-
-    def toggle_escape_sequences(self, state):
-        self.main_window.interpret_escape_sequences = (state == Qt.Checked)
-        self.main_window.save_settings()
-
-    def toggle_dark_mode(self, state):
-        self.main_window.use_dark_mode = (state == Qt.Checked)
-        self.main_window.save_settings()
-        self.main_window.apply_dark_mode()
-        self.main_window.redraw()
-
     def on_allow_all_changed(self, state):
-        allow = state == Qt.Checked
-        self.main_window.set_extension_allow_all(allow)
+        allow = (state == Qt.Checked)
+        self.ctx.settings.set_extension_allow_all(allow)
         for box in self.category_boxes.values():
             box.setEnabled(not allow)
             box.setHidden(allow)
@@ -134,34 +120,30 @@ class SettingsTab(QWidget):
 
     def on_categories_changed(self, _state):
         categories = [n for n, b in self.category_boxes.items() if b.isChecked()]
-        self.main_window.set_extension_categories(categories)
+        self.ctx.settings.set_extension_categories(categories)
 
     def on_extensions_changed(self, name: str, text: str):
-        self.main_window.set_extension_group_text(name, text)
+        self.ctx.settings.set_extension_group_text(name, text)
 
     def reset_extensions(self):
-        self.main_window.reset_extension_settings()
-        self.allow_all_checkbox.setChecked(self.main_window.extension_allow_all)
+        self.ctx.settings.reset_extension_settings()
+        self.allow_all_checkbox.setChecked(self.ctx.settings.extension_allow_all)
         for name, box in self.category_boxes.items():
-            box.setChecked(name in self.main_window.extension_categories)
+            box.setChecked(name in self.ctx.settings.extension_categories)
         for name, field in self.extension_fields.items():
-            field.setText(self.main_window.extension_group_texts[name])
+            field.setText(self.ctx.settings.extension_group_texts[name])
 
     def redraw(self):
-        """Redraw all dynamic UI elements if necessary."""
-        # For now, if there are labels or other elements needing theme updates, do it here.
+        # hook if you later need to restyle per theme
         pass
 
     def update_ssh_settings(self):
         host = self.ssh_host.text().strip()
         user = self.ssh_user.text().strip()
-        self.main_window.set_ssh_settings(host, user)
+        self.ctx.settings.set_ssh(host, user)
 
-    def update_ssh_status(self, connected: bool) -> None:
+    def update_ssh_status(self, connected: bool):
         color = "#28a745" if connected else "#dc3545"
         text = "Connected" if connected else "Disconnected"
-        self.ssh_status_indicator.setStyleSheet(
-            f"color: {color}; font-size: 14px; margin-right: 4px;"
-        )
+        self.ssh_status_indicator.setStyleSheet(f"color: {color}; font-size: 14px; margin-right: 4px;")
         self.ssh_status_text.setText(text)
-
