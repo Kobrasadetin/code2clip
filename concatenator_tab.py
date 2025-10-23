@@ -1,5 +1,8 @@
 import os
 import posixpath
+from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -26,6 +29,15 @@ PRESETS = {
     "Custom": {"prefix": '', "suffix": ''}
 }
 
+
+@dataclass(eq=True)
+class WorkspaceState:
+    files: Tuple[str, ...]
+    root_path: Optional[str]
+    prefix: str
+    suffix: str
+    preset: str
+
 class ConcatenatorTab(QWidget):
     def __init__(self, main_window):
         super().__init__()
@@ -33,10 +45,15 @@ class ConcatenatorTab(QWidget):
         self.settings = main_window.settings
         self.root_path = None
         self.loading_preset = False
+        self._state_lock = 0
+        self._undo_stack: List[WorkspaceState] = []
+        self._undo_index = -1
         self.init_ui()
         self.load_preset_settings()
         self.setAcceptDrops(True)  # Enable drag-and-drop on this widget.
         self.redraw()
+        self._push_state(force=True)
+        self._update_undo_buttons()
 
     def init_ui(self):
         layout = QVBoxLayout()
@@ -46,8 +63,20 @@ class ConcatenatorTab(QWidget):
         self.instruction_label.setStyleSheet("font-size: 16px;")
         layout.addWidget(self.instruction_label)
 
+        controls_layout = QHBoxLayout()
+        self.undo_button = QPushButton("Undo")
+        self.undo_button.clicked.connect(self.undo)
+        controls_layout.addWidget(self.undo_button)
+        self.redo_button = QPushButton("Redo")
+        self.redo_button.clicked.connect(self.redo)
+        controls_layout.addWidget(self.redo_button)
+        controls_layout.addStretch()
+        layout.addLayout(controls_layout)
+
         # File list
-        self.list_widget = FileListWidget(self.main_window)
+        self.list_widget = FileListWidget(
+            self.main_window, state_changed=self._on_list_state_changed
+        )
         layout.addWidget(self.list_widget)
 
         # Root path section with clickable label
@@ -94,7 +123,7 @@ class ConcatenatorTab(QWidget):
 
         self.setLayout(layout)
     
-       # --- helpers ---------------------------------------------------------
+        # --- helpers ---------------------------------------------------------
     def _is_remote(self) -> bool:
         ssh = getattr(self.main_window, "ssh_manager", None)
         return bool(ssh and ssh.is_connected())
@@ -102,6 +131,102 @@ class ConcatenatorTab(QWidget):
     def _to_posix(self, path: str) -> str:
         # Ensure forward slashes for remote paths
         return path.replace("\\", "/") if path else path
+
+    def _is_state_locked(self) -> bool:
+        return self._state_lock > 0
+
+    @contextmanager
+    def _state_guard(self, block_list_widget: bool = True):
+        self._state_lock += 1
+        if (
+            block_list_widget
+            and hasattr(self.list_widget, "block_state_notifications")
+        ):
+            try:
+                with self.list_widget.block_state_notifications():
+                    yield
+            finally:
+                self._state_lock -= 1
+            return
+        try:
+            yield
+        finally:
+            self._state_lock -= 1
+
+    def _capture_state(self) -> WorkspaceState:
+        return WorkspaceState(
+            tuple(self.list_widget.files),
+            self.root_path,
+            self.prefix_input.text(),
+            self.suffix_input.text(),
+            self.preset_combo.currentText(),
+        )
+
+    def _apply_root_path(self, new_root: Optional[str]):
+        stored_root = self._to_posix(new_root) if (new_root and self._is_remote()) else new_root
+        with self._state_guard():
+            self.root_path = stored_root
+            if stored_root:
+                self.list_widget.set_root_path(stored_root)
+                self.enable_root_checkbox.setChecked(True)
+            else:
+                self.list_widget.disable_root_path()
+                self.enable_root_checkbox.setChecked(False)
+        if stored_root:
+            self.root_button.setText(f"Root Path: {stored_root}")
+        else:
+            self.root_button.setText("Root Path: None")
+
+    def _apply_state(self, state: WorkspaceState):
+        with self._state_guard():
+            self.list_widget.files = list(state.files)
+            self.list_widget.update_list_display()
+        self._apply_root_path(state.root_path)
+        with self._state_guard(block_list_widget=False):
+            self.loading_preset = True
+            self.prefix_input.setText(state.prefix)
+            self.suffix_input.setText(state.suffix)
+            self.loading_preset = False
+            self.preset_combo.blockSignals(True)
+            preset = state.preset if state.preset in PRESETS else "Custom"
+            self.preset_combo.setCurrentText(preset)
+            self.preset_combo.blockSignals(False)
+
+    def _push_state(self, force: bool = False):
+        if self._is_state_locked():
+            return
+        state = self._capture_state()
+        if not force and self._undo_index >= 0 and self._undo_stack[self._undo_index] == state:
+            return
+        del self._undo_stack[self._undo_index + 1 :]
+        self._undo_stack.append(state)
+        self._undo_index = len(self._undo_stack) - 1
+        self._update_undo_buttons()
+
+    def _on_list_state_changed(self):
+        if self._is_state_locked():
+            return
+        self._push_state()
+
+    def _update_undo_buttons(self):
+        can_undo = self._undo_index > 0
+        can_redo = self._undo_index < len(self._undo_stack) - 1
+        self.undo_button.setEnabled(can_undo)
+        self.redo_button.setEnabled(can_redo)
+
+    def undo(self):
+        if self._undo_index <= 0:
+            return
+        self._undo_index -= 1
+        self._apply_state(self._undo_stack[self._undo_index])
+        self._update_undo_buttons()
+
+    def redo(self):
+        if self._undo_index >= len(self._undo_stack) - 1:
+            return
+        self._undo_index += 1
+        self._apply_state(self._undo_stack[self._undo_index])
+        self._update_undo_buttons()
 
     def load_preset_settings(self):
         # Suppress change handling during load
@@ -214,10 +339,8 @@ class ConcatenatorTab(QWidget):
                  self, "Insert Host Path", "Enter remote root path:", text=base
             )
             if ok and path:
-                self.root_path = self._to_posix(path)
-                self.enable_root_checkbox.setChecked(True)
-                self.list_widget.set_root_path(self.root_path)
-                self.root_button.setText(f"Root Path: {self.root_path}")
+                self._apply_root_path(path)
+                self._push_state()
             return
 
         # local: Windows/UNIX native commonpath
@@ -227,36 +350,35 @@ class ConcatenatorTab(QWidget):
             self, "Select Root Directory", common_path or ""
         )
         if folder:
-            self.root_path = folder
-            self.enable_root_checkbox.setChecked(True)
-            self.list_widget.set_root_path(folder)
-            self.root_button.setText(f"Root Path: {folder}")
+            self._apply_root_path(folder)
+            self._push_state()
 
     def toggle_root_path(self):
         """Enable or disable root path display based on checkbox."""
+        if self._is_state_locked():
+            return
         if self.enable_root_checkbox.isChecked():
-            # If no root selected yet, prompt
             if not self.root_path:
                 self.select_root_path()
-            else:
-                rp = self._to_posix(self.root_path) if self._is_remote() else self.root_path
-                self.list_widget.set_root_path(rp)
+                return
+            self._apply_root_path(self.root_path)
+            self._push_state()
         else:
-            self.root_path = None
-            self.list_widget.disable_root_path()
-            self.root_button.setText("Root Path: None")
+            self._apply_root_path(None)
+            self._push_state()
 
     def change_preset(self, preset_name):
-        if self.loading_preset:
+        if self.loading_preset or self._is_state_locked():
             return
         # Apply new preset
         if preset_name in PRESETS:
             self.apply_preset(preset_name)
             self.save_preset_settings(preset_name)
+            self._push_state()
 
     def on_prefix_suffix_changed(self):
         # Ignore changes during preset load
-        if self.loading_preset:
+        if self.loading_preset or self._is_state_locked():
             return
         # If user edits, switch to Custom and save custom
         xml, md = PRESETS["XML"], PRESETS["Markdown"]
@@ -268,6 +390,7 @@ class ConcatenatorTab(QWidget):
             self.preset_combo.blockSignals(False)
         if self.preset_combo.currentText() == "Custom":
             self.save_preset_settings("Custom")
+        self._push_state()
 
     def concatenate_files_wrapper(self):
         prefix = self.prefix_input.text()

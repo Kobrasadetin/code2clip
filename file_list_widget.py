@@ -1,4 +1,6 @@
 import os
+from contextlib import contextmanager
+
 import chardet
 from PyQt5.QtWidgets import (
     QListWidget,
@@ -14,7 +16,7 @@ from wsl_utilities import convert_wsl_path
 from utils import safe_relpath, list_files
 
 class FileListWidget(QListWidget):
-    def __init__(self, main_window=None, parent=None):
+    def __init__(self, main_window=None, parent=None, state_changed=None):
         super().__init__(parent)
         self.main_window = main_window
         # Enable drag and drop reordering within the list
@@ -26,6 +28,32 @@ class FileListWidget(QListWidget):
         self.setDragDropMode(QListWidget.InternalMove)
         self.files = []
         self.root_path = None
+        self._state_changed_callback = state_changed
+        self._notification_block_count = 0
+
+    @contextmanager
+    def block_state_notifications(self):
+        """Temporarily suppress state change callbacks."""
+        self._notification_block_count += 1
+        try:
+            yield
+        finally:
+            self._notification_block_count -= 1
+
+    def _notify_state_changed(self):
+        try:
+            block_count = getattr(self, "_notification_block_count", 0)
+        except RuntimeError:
+            # Happens in tests where the Qt base class is not fully initialised.
+            return
+        if block_count > 0:
+            return
+        try:
+            callback = getattr(self, "_state_changed_callback", None)
+        except RuntimeError:
+            return
+        if callback:
+            callback()
 
     def contextMenuEvent(self, event):
         item = self.itemAt(event.pos())
@@ -149,10 +177,12 @@ class FileListWidget(QListWidget):
         row = self.row(item)
         del self.files[row]
         self.takeItem(row)
+        self._notify_state_changed()
 
     def remove_all(self):
         self.files.clear()
         self.update_list_display()
+        self._notify_state_changed()
 
     def check_encoding(self, item):
         filepath = item.data(Qt.UserRole)
@@ -213,6 +243,7 @@ class FileListWidget(QListWidget):
             return
         self.files.append(filepath)
         self.update_list_display()
+        self._notify_state_changed()
 
     def is_allowed(self, filepath: str) -> bool:
         if not self.main_window:
@@ -227,10 +258,12 @@ class FileListWidget(QListWidget):
     def set_root_path(self, root_path):
         self.root_path = root_path
         self.update_list_display()
+        self._notify_state_changed()
 
     def disable_root_path(self):
         self.root_path = None
         self.update_list_display()
+        self._notify_state_changed()
 
     def update_list_display(self):
         self.clear()
@@ -255,3 +288,4 @@ class FileListWidget(QListWidget):
             filepath = item.data(Qt.UserRole)
             new_files.append(filepath)
         self.files = new_files  # Update the internal list
+        self._notify_state_changed()
