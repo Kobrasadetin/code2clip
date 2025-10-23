@@ -30,6 +30,11 @@ class SSHConnectionManager:
     def is_connected(self) -> bool:
         return self.client is not None
 
+    def _require_client(self) -> paramiko.SSHClient:
+        if self.client is None:
+            raise SSHError("SSH client is not connected.")
+        return self.client
+
     def try_connect(self, password: Optional[str] = None) -> bool:
         if not self.is_configured():
             return False
@@ -51,6 +56,42 @@ class SSHConnectionManager:
 
         self.client = client
         return True
+
+    def ensure_connection(self) -> paramiko.SSHClient:
+        if self.client is not None:
+            return self.client
+        if not self.is_configured():
+            raise SSHError("SSH connection is not configured.")
+        self.try_connect()
+        return self._require_client()
+
+    def open_sftp(self):
+        client = self._require_client()
+        return client.open_sftp()
+
+    def path_exists(self, path: str) -> bool:
+        try:
+            sftp = self.open_sftp()
+        except SSHError:
+            return False
+        try:
+            sftp.stat(path)
+            return True
+        except FileNotFoundError:
+            return False
+        except OSError:
+            return False
+        finally:
+            sftp.close()
+
+    def read_bytes(self, path: str) -> bytes:
+        client = self._require_client()
+        sftp = client.open_sftp()
+        try:
+            with sftp.open(path, "rb") as remote_file:
+                return remote_file.read()
+        finally:
+            sftp.close()
 
 # ---------- Qt-aware controller ----------
 PasswordProvider = Callable[[], Optional[str]]

@@ -8,6 +8,7 @@ os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
 from PyQt5.QtWidgets import QApplication
 
 from main_window import MainWindow
+from app_context import AppContext
 
 
 class TestMainWindowTabs(unittest.TestCase):
@@ -16,7 +17,8 @@ class TestMainWindowTabs(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def test_add_and_close_workspace_tabs(self):
-        window = MainWindow()
+        ctx = AppContext()
+        window = MainWindow(ctx)
         try:
             initial_count = len(window.workspace_tabs)
             self.assertGreaterEqual(initial_count, 1)
