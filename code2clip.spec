@@ -1,24 +1,24 @@
 # -*- mode: python -*-
 import os, sys
 from pathlib import Path
-from PyInstaller.building.build_main import Analysis, PYZ, EXE, COLLECT
+from PyInstaller.building.build_main import Analysis, PYZ, EXE
+# Only import COLLECT on Windows (we won't use it elsewhere)
+if sys.platform.startswith("win"):
+    from PyInstaller.building.build_main import COLLECT
 
 block_cipher = None
 
-# ─── app metadata (readable + used in Win resources) ───────────────────────
 APP_NAME = "Code2Clip"
-COMPANY = "kobrasadetin"       # shown as "CompanyName" on Windows
+COMPANY = "kobrasadetin"
 COPYRIGHT = "© 2025 kobrasadetin. MIT License"
 DESCRIPTION = "Concatenate files/snippets and copy to clipboard."
 
-# Read version (tag or short SHA written by CI step into code2clip_version.txt)
 version_str = "0.0.0"
 version_file = Path("code2clip_version.txt")
 if version_file.is_file():
     version_str = version_file.read_text(encoding="utf-8").strip()
 
 def _parse_ver_tuple(s):
-    # Be forgiving: handle "v1.2.3", "1.2.3", or "1.2"
     s = s.lstrip("vV")
     parts = [int(p) for p in s.split(".") if p.isdigit()]
     while len(parts) < 4:
@@ -27,16 +27,12 @@ def _parse_ver_tuple(s):
 
 filevers = prodvers = _parse_ver_tuple(version_str)
 
-# ─── platform icons ────────────────────────────────────────────────────────
-# Windows needs .ico, macOS bundling uses .icns via Info.plist (we still pass icon=None here),
-# Linux: icon is not embedded; keep PNGs in gui/ for use at runtime.
 icon_file = None
 if sys.platform.startswith("win"):
     ico = Path("packaging/windows/code2clip.ico")
     if ico.is_file():
         icon_file = str(ico)
 
-# ─── collect all files from gui/ + version file ────────────────────────────
 datas = []
 gui_dir = Path("gui")
 if gui_dir.is_dir():
@@ -49,8 +45,6 @@ if gui_dir.is_dir():
 if version_file.is_file():
     datas.append((str(version_file), "."))
 
-# ─── exclude obvious junk / unused stdlib / Qt parts ───────────────────────
-# Keep this conservative; add/remove as you see fit.
 excludes = [
     "tests",
     "unittest",
@@ -78,7 +72,6 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-# ─── Windows version resources (optional on non-Windows) ───────────────────
 win_version = None
 if sys.platform.startswith("win"):
     from PyInstaller.utils.win32.versioninfo import (
@@ -89,28 +82,21 @@ if sys.platform.startswith("win"):
         ffi=FixedFileInfo(
             filevers=filevers,
             prodvers=prodvers,
-            mask=0x3f,
-            flags=0x0,
-            OS=0x40004,
-            fileType=0x1,   # VFT_APP
-            subtype=0x0,
-            date=(0, 0),
+            mask=0x3f, flags=0x0, OS=0x40004,
+            fileType=0x1, subtype=0x0, date=(0, 0),
         ),
         kids=[
             StringFileInfo([
-                StringTable(
-                    "040904B0",  # US English, Unicode
-                    [
-                        StringStruct("CompanyName", COMPANY),
-                        StringStruct("FileDescription", DESCRIPTION),
-                        StringStruct("FileVersion", ".".join(map(str, filevers))),
-                        StringStruct("InternalName", APP_NAME),
-                        StringStruct("LegalCopyright", COPYRIGHT),
-                        StringStruct("OriginalFilename", f"{APP_NAME}.exe"),
-                        StringStruct("ProductName", APP_NAME),
-                        StringStruct("ProductVersion", ".".join(map(str, prodvers))),
-                    ],
-                )
+                StringTable("040904B0", [
+                    StringStruct("CompanyName", COMPANY),
+                    StringStruct("FileDescription", DESCRIPTION),
+                    StringStruct("FileVersion", ".".join(map(str, filevers))),
+                    StringStruct("InternalName", APP_NAME),
+                    StringStruct("LegalCopyright", COPYRIGHT),
+                    StringStruct("OriginalFilename", f"{APP_NAME}.exe"),
+                    StringStruct("ProductName", APP_NAME),
+                    StringStruct("ProductVersion", ".".join(map(str, prodvers))),
+                ])
             ]),
             VarFileInfo([VarStruct("Translation", [1033, 1200])]),
         ],
@@ -125,18 +111,21 @@ exe = EXE(
     name="code2clip",
     debug=False,
     strip=False,
-    upx=False,                  # ← disable UPX
+    upx=False,          # keep UPX disabled everywhere
     console=False,
     windowed=True,
-    icon=icon_file,             # ← add icon on Windows if present
-    version=win_version,        # ← embed version/metadata on Windows
+    icon=icon_file if sys.platform.startswith("win") else None,
+    version=win_version if sys.platform.startswith("win") else None,
 )
 
-# ─── onedir output ─────────────────────────────────────────────────────────
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    name="code2clip",           # dist/code2clip/...
-)
+# IMPORTANT:
+# - On Windows we produce ONEDIR by adding COLLECT.
+# - On Linux/macOS we DO NOT define COLLECT, so PyInstaller emits a single file in dist/code2clip
+if sys.platform.startswith("win"):
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        name="code2clip",
+    )

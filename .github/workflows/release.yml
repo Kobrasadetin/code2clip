@@ -49,12 +49,12 @@ jobs:
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             APP_NAME=Code2Clip
             APP_DIR=dist/$APP_NAME.app
-            BIN=dist/code2clip/code2clip   # ← onedir output
+            ZIP_PATH=dist/$APP_NAME-macos.zip
 
             mkdir -p "$APP_DIR/Contents/MacOS"
             mkdir -p "$APP_DIR/Contents/Resources"
 
-            mv "$BIN" "$APP_DIR/Contents/MacOS/code2clip"
+            mv dist/code2clip "$APP_DIR/Contents/MacOS/code2clip"
             chmod +x "$APP_DIR/Contents/MacOS/code2clip"
 
             cp packaging/macos/Info.plist "$APP_DIR/Contents/Info.plist"
@@ -62,21 +62,19 @@ jobs:
             cd dist
             zip -r Code2Clip-macos.zip Code2Clip.app
             cd ..
+
             echo "BINARY_PATH=dist/Code2Clip-macos.zip" >> $GITHUB_ENV
 
           elif [[ "$RUNNER_OS" == "Linux" ]]; then
-            # zip the onedir for convenience
-            cd dist
-            zip -r code2clip-linux.zip code2clip
-            cd ..
-            echo "BINARY_PATH=dist/code2clip-linux.zip" >> $GITHUB_ENV
+            mv dist/code2clip dist/code2clip-linux
+            echo "BINARY_PATH=dist/code2clip-linux" >> $GITHUB_ENV
 
           else
-            # Windows: zip the onedir folder (includes code2clip.exe)
             cd dist
             powershell -Command "Compress-Archive -Path code2clip -DestinationPath Code2Clip-windows.zip"
             cd ..
             echo "BINARY_PATH=dist/Code2Clip-windows.zip" >> $GITHUB_ENV
+          fi
         shell: bash
 
       - name: Upload Binary
