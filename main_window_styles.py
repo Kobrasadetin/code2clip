@@ -1,6 +1,7 @@
 from functools import partial
 import platform
 import ctypes
+from typing import Optional
 
 from PyQt5.QtCore import Qt, QEvent, QSize
 from PyQt5.QtGui import QPixmap, QPainter, QPen, QColor, QIcon, QPalette
@@ -82,7 +83,7 @@ def apply_simple_hover(button: QToolButton, normal: QIcon, hover: QIcon, disable
 
 def update_tab_close_buttons(
     tabs: QTabWidget,
-    settings_tab: QWidget | None,
+    settings_tab: Optional[QWidget],
     close_widget_callback,  # Callable[[QWidget], None]
     px: int = 14,
     thickness: float = 1.9,
