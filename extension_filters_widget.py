@@ -236,6 +236,20 @@ class ExtensionFiltersWidget(QWidget):
         self.subset_container.setLayout(subset_layout)
         layout.addWidget(self.subset_container)
 
+        include_row = QHBoxLayout()
+        include_row.setContentsMargins(0, 0, 0, 0)
+        self.include_label = QLabel("Include extensions:")
+        include_row.addWidget(self.include_label)
+        self.included_extensions_input = QLineEdit(
+            self.settings.included_extensions_text or ""
+        )
+        self.included_extensions_input.setPlaceholderText("e.g., .svg, .blend")
+        self.included_extensions_input.textChanged.connect(
+            self.settings.set_included_extensions_text
+        )
+        include_row.addWidget(self.included_extensions_input, 1)
+        layout.addLayout(include_row)
+
         exclude_row = QHBoxLayout()
         exclude_row.setContentsMargins(0, 0, 0, 0)
         self.exclude_label = QLabel("Exclude extensions:")
@@ -329,6 +343,12 @@ class ExtensionFiltersWidget(QWidget):
                 chip.setEnabled(enabled)
                 chip.blockSignals(False)
 
+        self.included_extensions_input.blockSignals(True)
+        self.included_extensions_input.setText(
+            self.settings.included_extensions_text or ""
+        )
+        self.included_extensions_input.blockSignals(False)
+
         self.excluded_extensions_input.blockSignals(True)
         self.excluded_extensions_input.setText(
             self.settings.excluded_extensions_text or ""
@@ -358,6 +378,8 @@ class ExtensionFiltersWidget(QWidget):
         self.category_master_container.setVisible(is_categories)
         self.subset_container.setVisible(is_categories)
         self.custom_container.setVisible(is_custom)
+        self.include_label.setVisible(is_categories)
+        self.included_extensions_input.setVisible(is_categories)
         enable_exclude = mode != "allow_all"
         self.exclude_label.setEnabled(enable_exclude)
         self.excluded_extensions_input.setEnabled(enable_exclude)

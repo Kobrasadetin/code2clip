@@ -12,6 +12,7 @@ def _mk_settings(**overrides):
         include_text=True,
         include_data=True,
         excluded_subsets={},
+        included_extensions_text="",
         excluded_extensions_text="",
         custom_extensions_text="",
     )
@@ -52,6 +53,20 @@ class TestExtensionCompute(unittest.TestCase):
         self.assertIn(".json", compute_extension_filters(settings))
         settings.excluded_extensions_text = ".json"
         self.assertNotIn(".json", compute_extension_filters(settings))
+
+    def test_categories_can_include_additional_extensions(self):
+        settings = _mk_settings(included_extensions_text=".svg\n.blend")
+        result = compute_extension_filters(settings)
+        self.assertIn(".svg", result)
+        self.assertIn(".blend", result)
+
+    def test_custom_mode_accepts_newline_separated_extensions(self):
+        settings = _mk_settings(
+            extension_mode="custom",
+            custom_extensions_text=".py\n.md\n.json",
+        )
+        result = compute_extension_filters(settings)
+        self.assertEqual(set(result), {".py", ".md", ".json"})
 
 
 if __name__ == "__main__":

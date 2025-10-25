@@ -28,6 +28,7 @@ class DummySettingsStore(mock.MagicMock):
         self.include_text = True
         self.include_data = True
         self.excluded_subsets = {}
+        self.included_extensions_text = ""
         self.excluded_extensions_text = ""
         self.custom_extensions_text = ""
         self.extension_filters = [".py", ".md"]

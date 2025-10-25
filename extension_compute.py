@@ -34,6 +34,9 @@ def compute_extension_filters(settings) -> list[str]:
             for subset in subset_list or []:
                 allowed.difference_update(EXTENSION_SETS.get(subset, []))
 
+    included = set(parse_extensions(getattr(settings, "included_extensions_text", "")))
+    allowed.update(included)
+
     denied = set(parse_extensions(getattr(settings, "excluded_extensions_text", "")))
     allowed.difference_update(denied)
 

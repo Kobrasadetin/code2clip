@@ -61,6 +61,9 @@ class AppSettings(QObject):
         except Exception:
             self.excluded_subsets = {}
 
+        self.included_extensions_text: str = self._qs.value(
+            "included_extensions_text", "", type=str
+        )
         self.excluded_extensions_text: str = self._qs.value(
             "excluded_extensions_text", "", type=str
         )
@@ -100,6 +103,7 @@ class AppSettings(QObject):
         self._qs.setValue("include_text", self.include_text)
         self._qs.setValue("include_data", self.include_data)
         self._qs.setValue("excluded_subsets", json.dumps(self.excluded_subsets or {}))
+        self._qs.setValue("included_extensions_text", self.included_extensions_text or "")
         self._qs.setValue("excluded_extensions_text", self.excluded_extensions_text or "")
         self._qs.setValue("custom_extensions_text", self.custom_extensions_text or "")
 
@@ -211,6 +215,11 @@ class AppSettings(QObject):
             self.excluded_extensions_text = text
             self._rebuild_filters()
 
+    def set_included_extensions_text(self, text: str):
+        if self.included_extensions_text != text:
+            self.included_extensions_text = text
+            self._rebuild_filters()
+
     def set_custom_extensions_text(self, text: str):
         if self.custom_extensions_text != text:
             self.custom_extensions_text = text
@@ -246,6 +255,7 @@ class AppSettings(QObject):
         self.include_text = True
         self.include_data = True
         self.excluded_subsets = {}
+        self.included_extensions_text = ""
         self.excluded_extensions_text = ""
         self.custom_extensions_text = ""
         self._rebuild_filters()

@@ -12,6 +12,7 @@ class TestSettingsDefaults(unittest.TestCase):
             self.assertTrue(settings.include_code)
             self.assertTrue(settings.include_text)
             self.assertTrue(settings.include_data)
+            self.assertEqual(settings.included_extensions_text, "")
         finally:
             settings._qs.clear()
             settings._qs.sync()
