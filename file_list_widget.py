@@ -1,4 +1,5 @@
 import os
+import ntpath
 from functools import partial
 from typing import Callable, Iterable, Optional
 
@@ -41,6 +42,60 @@ class FileListWidget(QListWidget):
         self._can_undo: Optional[Callable[[], bool]] = None
         self._can_redo: Optional[Callable[[], bool]] = None
 
+    def _looks_like_windows_path(self, filepath: str) -> bool:
+        if not filepath:
+            return False
+        if filepath.startswith(("\\\\", "//")):
+            return True
+        if "\\" in filepath:
+            return True
+        if ":" in filepath:
+            return True
+        return False
+
+    def _convert_wsl_unc_to_drive(self, filepath: str) -> str:
+        simplified = filepath.replace("\\\\", "\\")
+        lowered = simplified.lower()
+        prefix = "\\wsl.localhost\\"
+        if not lowered.startswith(prefix):
+            return filepath
+        parts = [segment for segment in simplified.split("\\") if segment]
+        if len(parts) < 4:
+            return filepath
+        if parts[0].lower() != "wsl.localhost":
+            return filepath
+        if parts[2].lower() != "mnt":
+            return filepath
+        drive = parts[3]
+        if len(drive) != 1 or not drive.isalpha():
+            return filepath
+        remainder = "\\".join(parts[4:])
+        if remainder:
+            return f"{drive.upper()}:\\{remainder}"
+        return f"{drive.upper()}:\\"
+
+    def _normalize_incoming_path(self, filepath: str) -> str:
+        if not filepath:
+            return filepath
+        if self._looks_like_windows_path(filepath):
+            normalized = filepath.replace("/", "\\")
+            normalized = self._convert_wsl_unc_to_drive(normalized)
+            return ntpath.normpath(normalized)
+        return os.path.normpath(filepath)
+
+    def _canonical_key(self, filepath: str) -> str:
+        normalized = self._normalize_incoming_path(filepath)
+        if self._looks_like_windows_path(normalized):
+            return ntpath.normcase(normalized)
+        return normalized
+
+    def _path_exists_in_list(self, filepath: str) -> bool:
+        candidate_key = self._canonical_key(filepath)
+        for existing in self.files:
+            if candidate_key == self._canonical_key(existing):
+                return True
+        return False
+
     def set_change_callback(self, callback: Optional[Callable[[], None]]) -> None:
         self._change_callback = callback
 
@@ -63,7 +118,16 @@ class FileListWidget(QListWidget):
         self._can_redo = can_redo
 
     def set_files(self, files: Iterable[str], notify: bool = True) -> None:
-        self.files = list(files)
+        unique_files: list[str] = []
+        seen_keys: set[str] = set()
+        for filepath in files:
+            normalized = self._normalize_incoming_path(filepath)
+            key = self._canonical_key(normalized)
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            unique_files.append(normalized)
+        self.files = unique_files
         self.update_list_display()
         if notify:
             self._notify_change()
@@ -163,7 +227,8 @@ class FileListWidget(QListWidget):
             )
             allowed_files = [f for f in files if self.is_allowed(f)]
             if allowed_files:
-                new_files = [f for f in files if f not in self.files]
+                normalized_files = [self._normalize_incoming_path(f) for f in allowed_files]
+                new_files = [f for f in normalized_files if not self._path_exists_in_list(f)]
                 if new_files:
                     self.files.extend(new_files)
                     self.update_list_display()
@@ -272,11 +337,12 @@ class FileListWidget(QListWidget):
             )
 
     def add_file(self, filepath, enforce_filter=True):
-        if filepath in self.files:
+        normalized = self._normalize_incoming_path(filepath)
+        if self._path_exists_in_list(normalized):
             return
-        if enforce_filter and not self.is_allowed(filepath):
+        if enforce_filter and not self.is_allowed(normalized):
             return
-        self.files.append(filepath)
+        self.files.append(normalized)
         self.update_list_display()
         self._notify_change()
 
