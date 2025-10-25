@@ -277,7 +277,11 @@ class FileListWidget(QListWidget):
                 )
 
     def strip_quotes(self, text):
-        if text.startswith('"') and text.endswith('"'):
+        text = text.strip()
+        if len(text) >= 2 and (
+            (text.startswith('"') and text.endswith('"'))
+            or (text.startswith("'") and text.endswith("'"))
+        ):
             return text[1:-1]
         return text
 
