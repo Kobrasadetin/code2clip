@@ -29,6 +29,9 @@ EXTENSION_GROUP_DEFAULTS = {
         ".htm",
         ".js",
         ".ts",
+        ".tsx",
+        ".jsx",
+        ".mjs",
         ".c",
         ".cpp",
         ".java",
@@ -39,6 +42,13 @@ EXTENSION_GROUP_DEFAULTS = {
         ".go",
         ".rb",
         ".php",
+        ".swift",
+        ".kt",
+        ".kts",
+        ".lua",
+        ".pl",
+        ".sql",
+        ".vb",
     ],
 }
 
