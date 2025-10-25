@@ -12,16 +12,132 @@ from PyQt5.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QTextEdit,
+    QRadioButton,
+    QButtonGroup,
+    QToolButton,
+    QLayout,
+    QWidgetItem,
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QRect, QSize, QPoint
 from functools import partial
-from extension_filters import EXTENSION_GROUP_DEFAULTS
+from extension_sets import TOP_CATEGORIES, EXTENSION_SETS
 from ignore_filters import (
     DEFAULT_IGNORE_PRESET,
     IGNORE_PRESETS,
     get_ignore_set,
 )
 from app_context import AppContext
+
+
+class FlowLayout(QLayout):
+    """A simple flow layout for arranging chip buttons."""
+
+    def __init__(self, parent=None, margin: int = 0, spacing: int = -1):
+        super().__init__(parent)
+        self._item_list: list[QWidgetItem] = []
+        self.setContentsMargins(margin, margin, margin, margin)
+        self.setSpacing(spacing if spacing >= 0 else 6)
+
+    def addItem(self, item):
+        self._item_list.append(item)
+
+    def count(self):
+        return len(self._item_list)
+
+    def itemAt(self, index):
+        if 0 <= index < len(self._item_list):
+            return self._item_list[index]
+        return None
+
+    def takeAt(self, index):
+        if 0 <= index < len(self._item_list):
+            return self._item_list.pop(index)
+        return None
+
+    def expandingDirections(self):
+        return Qt.Orientations()
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        return self._do_layout(QRect(0, 0, width, 0), test_only=True)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._do_layout(rect, test_only=False)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        size = QSize()
+        for item in self._item_list:
+            size = size.expandedTo(item.minimumSize())
+        margins = self.contentsMargins()
+        size += QSize(margins.left() + margins.right(), margins.top() + margins.bottom())
+        return size
+
+    def _do_layout(self, rect: QRect, test_only: bool):
+        x = rect.x()
+        y = rect.y()
+        line_height = 0
+        spacing = self.spacing()
+        effective_rect = rect.adjusted(
+            self.contentsMargins().left(),
+            self.contentsMargins().top(),
+            -self.contentsMargins().right(),
+            -self.contentsMargins().bottom(),
+        )
+        x = effective_rect.x()
+        y = effective_rect.y()
+
+        for item in self._item_list:
+            widget = item.widget()
+            if widget is None or not widget.isVisible():
+                continue
+            space_x = spacing
+            space_y = spacing
+            next_x = x + item.sizeHint().width() + space_x
+            if next_x - space_x > effective_rect.right() and line_height > 0:
+                x = effective_rect.x()
+                y = y + line_height + space_y
+                next_x = x + item.sizeHint().width() + space_x
+                line_height = 0
+
+            if not test_only:
+                item.setGeometry(QRect(QPoint(x, y), item.sizeHint()))
+
+            x = next_x
+            line_height = max(line_height, item.sizeHint().height())
+
+        return y + line_height - rect.y() + self.contentsMargins().bottom()
+
+
+class ExtensionChipButton(QToolButton):
+    def __init__(self, text: str, parent=None):
+        super().__init__(parent)
+        self.setText(text)
+        self.setCheckable(True)
+        self.setAutoRaise(True)
+        self.setCursor(Qt.PointingHandCursor)
+        self.toggled.connect(self._update_style)
+        self._update_style(self.isChecked())
+
+    def sizeHint(self):
+        hint = super().sizeHint()
+        return hint.expandedTo(QSize(80, hint.height()))
+
+    def _update_style(self, checked: bool):
+        base = "border-radius: 12px; padding: 4px 12px;"
+        if checked:
+            style = "background-color: palette(highlight); color: palette(highlighted-text);"
+        else:
+            style = (
+                "background-color: palette(button); color: palette(button-text);"
+                "border: 1px solid palette(mid);"
+            )
+        self.setStyleSheet(base + style)
 
 def default_password_prompt(parent=None, user="", host=""):
     from PyQt5.QtWidgets import QInputDialog, QLineEdit
@@ -88,29 +204,119 @@ class SettingsTab(QWidget):
         # Extension filters
         ext_label = QLabel("File Type Filters:")
         inner_layout.addWidget(ext_label)
-        self.allow_all_checkbox = QCheckBox("Allow all file types")
-        self.allow_all_checkbox.setChecked(self.ctx.settings.extension_allow_all)
-        self.allow_all_checkbox.stateChanged.connect(self.on_allow_all_changed)
-        inner_layout.addWidget(self.allow_all_checkbox)
 
-        self.category_boxes = {}
-        self.extension_fields = {}
-        for name in EXTENSION_GROUP_DEFAULTS:
-            row = QHBoxLayout()
-            box = QCheckBox(name)
-            box.setChecked(name in self.ctx.settings.extension_categories)
-            box.stateChanged.connect(self.on_categories_changed)
-            field = QLineEdit(self.ctx.settings.extension_group_texts[name])
-            field.textChanged.connect(partial(self.on_extensions_changed, name))
-            row.addWidget(box)
-            row.addWidget(field)
-            inner_layout.addLayout(row)
-            self.category_boxes[name] = box
-            self.extension_fields[name] = field
+        self.mode_group = QButtonGroup(self)
+        self._mode_to_button: dict[str, QRadioButton] = {}
+        self._id_to_mode: dict[int, str] = {}
+
+        mode_layout = QHBoxLayout()
+        mode_layout.setContentsMargins(0, 0, 0, 0)
+        mode_layout.addWidget(QLabel("Mode:"))
+        modes = [
+            ("Categories", "categories"),
+            ("Allow all", "allow_all"),
+            ("Custom list", "custom"),
+        ]
+        for idx, (label, mode_key) in enumerate(modes):
+            radio = QRadioButton(label)
+            self.mode_group.addButton(radio, idx)
+            self._mode_to_button[mode_key] = radio
+            self._id_to_mode[idx] = mode_key
+            mode_layout.addWidget(radio)
+        mode_layout.addStretch()
+        self.mode_group.buttonClicked[int].connect(self._on_mode_button_clicked)
+        inner_layout.addLayout(mode_layout)
+
+        self.category_master_container = QWidget()
+        master_layout = QHBoxLayout()
+        master_layout.setContentsMargins(0, 0, 0, 0)
+        self.category_toggles = {}
+        self._category_attr = {
+            "Code": "include_code",
+            "Text": "include_text",
+            "Data": "include_data",
+        }
+        for label, attr in self._category_attr.items():
+            box = QCheckBox(label)
+            box.stateChanged.connect(partial(self._on_master_category_toggled, attr))
+            self.category_toggles[attr] = box
+            master_layout.addWidget(box)
+        master_layout.addStretch()
+        self.category_master_container.setLayout(master_layout)
+        inner_layout.addWidget(self.category_master_container)
+
+        self.subset_container = QWidget()
+        subset_layout = QVBoxLayout()
+        subset_layout.setContentsMargins(0, 0, 0, 0)
+        self.subset_buttons: dict[str, dict[str, ExtensionChipButton]] = {}
+        for category, subsets in TOP_CATEGORIES.items():
+            category_label = QLabel(category)
+            category_label.setStyleSheet("font-weight: bold;")
+            subset_layout.addWidget(category_label)
+            flow_widget = QWidget()
+            flow = FlowLayout()
+            flow_widget.setLayout(flow)
+            buttons = {}
+            for subset in subsets:
+                chip = ExtensionChipButton(subset)
+                tooltip_values = EXTENSION_SETS.get(subset, [])
+                if tooltip_values:
+                    chip.setToolTip(", ".join(sorted(set(tooltip_values))))
+                chip.toggled.connect(partial(self._on_subset_chip_toggled, category, subset))
+                buttons[subset] = chip
+                flow.addWidget(chip)
+            self.subset_buttons[category] = buttons
+            subset_layout.addWidget(flow_widget)
+        self.subset_container.setLayout(subset_layout)
+        inner_layout.addWidget(self.subset_container)
+
+        exclude_row = QHBoxLayout()
+        exclude_row.setContentsMargins(0, 0, 0, 0)
+        self.exclude_label = QLabel("Exclude extensions:")
+        exclude_row.addWidget(self.exclude_label)
+        self.excluded_extensions_input = QLineEdit(
+            self.ctx.settings.excluded_extensions_text or ""
+        )
+        self.excluded_extensions_input.setPlaceholderText("e.g., .log, .tmp")
+        self.excluded_extensions_input.textChanged.connect(
+            self.ctx.settings.set_excluded_extensions_text
+        )
+        exclude_row.addWidget(self.excluded_extensions_input, 1)
+        inner_layout.addLayout(exclude_row)
+
+        self.custom_container = QWidget()
+        custom_layout = QVBoxLayout()
+        custom_layout.setContentsMargins(0, 0, 0, 0)
+        custom_layout.addWidget(
+            QLabel("Custom extensions (comma or newline separated):")
+        )
+        self.custom_extensions_edit = QTextEdit()
+        self.custom_extensions_edit.setPlaceholderText(".py, .md, .json")
+        self.custom_extensions_edit.setPlainText(
+            self.ctx.settings.custom_extensions_text or ""
+        )
+        self.custom_extensions_edit.textChanged.connect(self._on_custom_text_changed)
+        custom_layout.addWidget(self.custom_extensions_edit)
+        self.custom_container.setLayout(custom_layout)
+        inner_layout.addWidget(self.custom_container)
+
+        preview_layout = QHBoxLayout()
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        self.allowed_label = QLabel("")
+        preview_layout.addWidget(self.allowed_label)
+        preview_layout.addStretch()
+        self.show_allowed_btn = QPushButton("Show…")
+        self.show_allowed_btn.clicked.connect(self.show_allowed_extensions_dialog)
+        preview_layout.addWidget(self.show_allowed_btn)
+        inner_layout.addLayout(preview_layout)
 
         reset_btn = QPushButton("Reset File Extensions")
         reset_btn.clicked.connect(self.reset_extensions)
         inner_layout.addWidget(reset_btn)
+
+        self.ctx.settings.extensionFiltersChanged.connect(self._refresh_extension_preview)
+        self._sync_extension_controls()
+        self._refresh_extension_preview(self.ctx.settings.extension_filters)
 
         # --- Ignore Filters UI ---
         inner_layout.addSpacing(10)
@@ -186,30 +392,115 @@ class SettingsTab(QWidget):
 
         self.setLayout(outer_layout)
 
-    def on_allow_all_changed(self, state):
-        allow = (state == Qt.Checked)
-        self.ctx.settings.set_extension_allow_all(allow)
-        for box in self.category_boxes.values():
-            box.setEnabled(not allow)
-            box.setHidden(allow)
-        for field in self.extension_fields.values():
-            field.setEnabled(not allow)
-            field.setHidden(allow)
+    def _on_mode_button_clicked(self, idx: int):
+        mode = self._id_to_mode.get(idx, "categories")
+        self.ctx.settings.set_extension_mode(mode)
+        self._update_extension_mode_visibility()
 
-    def on_categories_changed(self, _state):
-        categories = [n for n, b in self.category_boxes.items() if b.isChecked()]
-        self.ctx.settings.set_extension_categories(categories)
+    def _on_master_category_toggled(self, attr: str, state: int):
+        setter = getattr(self.ctx.settings, f"set_{attr}")
+        setter(state == Qt.Checked)
+        self._update_subset_enabled_states()
 
-    def on_extensions_changed(self, name: str, text: str):
-        self.ctx.settings.set_extension_group_text(name, text)
+    def _on_subset_chip_toggled(self, category: str, subset: str, checked: bool):
+        self.ctx.settings.set_subset_excluded(category, subset, not checked)
+
+    def _on_custom_text_changed(self):
+        self.ctx.settings.set_custom_extensions_text(
+            self.custom_extensions_edit.toPlainText()
+        )
+
+    def _sync_extension_controls(self):
+        settings = self.ctx.settings
+        mode = settings.extension_mode or "categories"
+        for mode_key, button in self._mode_to_button.items():
+            button.blockSignals(True)
+            button.setChecked(mode_key == mode)
+            button.blockSignals(False)
+
+        for attr, checkbox in self.category_toggles.items():
+            value = getattr(settings, attr, True)
+            checkbox.blockSignals(True)
+            checkbox.setChecked(bool(value))
+            checkbox.blockSignals(False)
+
+        excluded = settings.excluded_subsets or {}
+        for category, buttons in self.subset_buttons.items():
+            excluded_set = set(excluded.get(category, []) or [])
+            attr_name = self._category_attr.get(category)
+            enabled = getattr(settings, attr_name, True) if attr_name else True
+            for subset, chip in buttons.items():
+                chip.blockSignals(True)
+                chip.setChecked(subset not in excluded_set)
+                chip.setEnabled(enabled)
+                chip.blockSignals(False)
+
+        self.excluded_extensions_input.blockSignals(True)
+        self.excluded_extensions_input.setText(settings.excluded_extensions_text or "")
+        self.excluded_extensions_input.blockSignals(False)
+
+        self.custom_extensions_edit.blockSignals(True)
+        self.custom_extensions_edit.setPlainText(settings.custom_extensions_text or "")
+        self.custom_extensions_edit.blockSignals(False)
+
+        self._update_extension_mode_visibility()
+
+    def _update_subset_enabled_states(self):
+        for category, buttons in self.subset_buttons.items():
+            attr_name = self._category_attr.get(category)
+            enabled = getattr(self.ctx.settings, attr_name, True) if attr_name else True
+            for chip in buttons.values():
+                chip.setEnabled(enabled)
+
+    def _update_extension_mode_visibility(self):
+        mode = self.ctx.settings.extension_mode or "categories"
+        is_categories = mode == "categories"
+        is_custom = mode == "custom"
+        self.category_master_container.setVisible(is_categories)
+        self.subset_container.setVisible(is_categories)
+        self.custom_container.setVisible(is_custom)
+        enable_exclude = mode != "allow_all"
+        self.exclude_label.setEnabled(enable_exclude)
+        self.excluded_extensions_input.setEnabled(enable_exclude)
+        self._update_subset_enabled_states()
+
+    def _refresh_extension_preview(self, filters=None):
+        if filters is None:
+            filters = self.ctx.settings.extension_filters
+        mode = self.ctx.settings.extension_mode or "categories"
+        if mode == "allow_all":
+            self.allowed_label.setText("Allowed extensions: all")
+            self.show_allowed_btn.setEnabled(False)
+        else:
+            count = len(filters or [])
+            self.allowed_label.setText(f"Allowed extensions: {count}")
+            self.show_allowed_btn.setEnabled(count > 0)
+
+    def show_allowed_extensions_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Allowed extensions")
+        layout = QVBoxLayout(dialog)
+        text = QTextEdit()
+        text.setReadOnly(True)
+        extensions = self.ctx.settings.extension_filters
+        mode = self.ctx.settings.extension_mode or "categories"
+        if mode == "allow_all":
+            text.setPlainText("All extensions are allowed.")
+        elif extensions:
+            text.setPlainText("\n".join(extensions))
+        else:
+            text.setPlainText("(no extensions)")
+        layout.addWidget(text)
+        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.resize(360, 420)
+        dialog.exec_()
 
     def reset_extensions(self):
         self.ctx.settings.reset_extension_settings()
-        self.allow_all_checkbox.setChecked(self.ctx.settings.extension_allow_all)
-        for name, box in self.category_boxes.items():
-            box.setChecked(name in self.ctx.settings.extension_categories)
-        for name, field in self.extension_fields.items():
-            field.setText(self.ctx.settings.extension_group_texts[name])
+        self._sync_extension_controls()
+        self._refresh_extension_preview(self.ctx.settings.extension_filters)
 
         # Update ignore filters UI
         self.ignore_preset_combo.blockSignals(True)

@@ -7,7 +7,6 @@ from PyQt5.QtWidgets import QApplication
 
 from settings_tab import SettingsTab
 from settings_store import AppSettings # We will mock this
-from extension_filters import EXTENSION_GROUP_DEFAULTS # Import defaults
 
 os.environ.setdefault("QT_QPA_PLATFORM", "minimal")
 os.environ.setdefault("QT_STYLE_OVERRIDE", "Fusion")
@@ -23,13 +22,15 @@ class DummySettingsStore(mock.MagicMock):
         self.ssh_username = "user"
         self.extension_allow_all = False
         self.extension_categories = ["Code Files"]
-        
-        # --- FIX: Populate all keys from the defaults ---
-        self.extension_group_texts = {
-            name: ",".join(defaults) 
-            for name, defaults in EXTENSION_GROUP_DEFAULTS.items()
-        }
-        # --- End Fix ---
+        self.extension_group_texts = {}
+        self.extension_mode = "categories"
+        self.include_code = True
+        self.include_text = True
+        self.include_data = True
+        self.excluded_subsets = {}
+        self.excluded_extensions_text = ""
+        self.custom_extensions_text = ""
+        self.extension_filters = [".py", ".md"]
 
         self.ignore_preset = "Global-Lean"
         self.custom_ignore_list = ""
