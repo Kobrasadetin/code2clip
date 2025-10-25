@@ -100,6 +100,22 @@ class FileListWidgetTest(unittest.TestCase):
 
         self.assertEqual(widget.files, ['/tmp/sample.py'])
 
+    def test_add_clipboard_files_skip_duplicates_with_trailing_whitespace(self):
+        widget = self.create_widget(True, [])
+        widget.add_file('/tmp/sample.py', enforce_filter=False)
+
+        class DummyClipboard:
+            def text(self):
+                return '"/tmp/sample.py"\r\n/tmp/another.py\r\n'
+
+        dummy_app = type('DummyApp', (), {'clipboard': staticmethod(lambda: DummyClipboard())})
+        self.fw_module.QApplication = dummy_app
+
+        with patch('file_list_widget.os.path.exists', return_value=True):
+            widget.add_clipboard_files()
+
+        self.assertEqual(widget.files, ['/tmp/sample.py', '/tmp/another.py'])
+
     def test_clipboard_wsl_paths_do_not_duplicate_existing_files(self):
         widget = self.create_widget(True, [])
         widget.files = ['C:\\Users\\demo\\sample.txt']
