@@ -100,5 +100,36 @@ class FileListWidgetTest(unittest.TestCase):
 
         self.assertEqual(widget.files, ['/tmp/sample.py'])
 
+    def test_clipboard_wsl_paths_do_not_duplicate_existing_files(self):
+        widget = self.create_widget(True, [])
+        widget.files = ['C:\\Users\\demo\\sample.txt']
+
+        class DummyClipboard:
+            def text(self):
+                return '/mnt/c/Users/demo/sample.txt\n/mnt/c/Users/demo/other.txt\n'
+
+        dummy_app = type('DummyApp', (), {'clipboard': staticmethod(lambda: DummyClipboard())})
+        self.fw_module.QApplication = dummy_app
+
+        conversions = {
+            '/mnt/c/Users/demo/sample.txt': r'\\wsl.localhost\\Ubuntu\\mnt\\c\\Users\\demo\\sample.txt',
+            '/mnt/c/Users/demo/other.txt': r'\\wsl.localhost\\Ubuntu\\mnt\\c\\Users\\demo\\other.txt',
+        }
+
+        def fake_convert(path, host):
+            return conversions.get(path, path)
+
+        with patch('file_list_widget.convert_wsl_path', side_effect=fake_convert), \
+            patch('file_list_widget.os.path.exists', return_value=True):
+            widget.add_clipboard_files()
+
+        self.assertEqual(
+            widget.files,
+            [
+                'C:\\Users\\demo\\sample.txt',
+                'C:\\Users\\demo\\other.txt',
+            ],
+        )
+
 if __name__ == '__main__':
     unittest.main()
