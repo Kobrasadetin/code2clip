@@ -3,6 +3,8 @@ from typing import Dict, Set
 
 # --- Presets Definition ---
 
+NONE = set()
+
 GLOBAL_LEAN = {
     ".git", ".hg", ".svn", ".vscode", ".idea", ".vs", ".cache", "tmp", ".tmp",
     "logs", "coverage", "node_modules", "__pycache__", "dist", "build", "out",
@@ -45,6 +47,7 @@ APPLE_SWIFT_XCODE = GLOBAL_LEAN.union({
 DEFAULT_IGNORE_PRESET = "Global-Lean"
 
 IGNORE_PRESETS: Dict[str, Set[str]] = {
+    "None": NONE,
     "Global-Lean": GLOBAL_LEAN,
     "Web/Node": WEB_NODE,
     "Pythonic": PYTHONIC,
