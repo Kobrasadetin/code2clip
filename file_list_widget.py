@@ -1,5 +1,6 @@
 import os
 import ntpath
+import posixpath
 from functools import partial
 from typing import Callable, Iterable, Optional
 
@@ -81,6 +82,13 @@ class FileListWidget(QListWidget):
             normalized = filepath.replace("/", "\\")
             normalized = self._convert_wsl_unc_to_drive(normalized)
             return ntpath.normpath(normalized)
+        if "/" in filepath and "\\" not in filepath:
+            # Preserve forward slashes for POSIX-like paths even when running
+            # on Windows. This avoids inadvertently converting clipboard paths
+            # such as "/tmp/example.py" into "\\tmp\\example.py" which breaks
+            # expectations in tests and in user workflows that rely on POSIX
+            # semantics. posixpath.normpath keeps separators consistent.
+            return posixpath.normpath(filepath)
         return os.path.normpath(filepath)
 
     def _canonical_key(self, filepath: str) -> str:
@@ -271,7 +279,11 @@ class FileListWidget(QListWidget):
                 )
 
     def strip_quotes(self, text):
-        if text.startswith('"') and text.endswith('"'):
+        text = text.strip()
+        if len(text) >= 2 and (
+            (text.startswith('"') and text.endswith('"'))
+            or (text.startswith("'") and text.endswith("'"))
+        ):
             return text[1:-1]
         return text
 
