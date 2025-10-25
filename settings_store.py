@@ -1,5 +1,6 @@
 # settings_store.py
 from __future__ import annotations
+import json
 from typing import Dict, List, Set
 from PyQt5.QtCore import QObject, pyqtSignal, QSettings
 
@@ -8,8 +9,8 @@ from extension_filters import (
     DEFAULT_EXTENSION_CATEGORIES,
     parse_categories,
     parse_extensions,
-    build_extension_filters,
 )
+from extension_compute import compute_extension_filters
 from ignore_filters import (
     IGNORE_PRESETS,
     DEFAULT_IGNORE_PRESET,
@@ -48,9 +49,27 @@ class AppSettings(QObject):
             self.extension_group_texts[name] = text
             self.extension_groups[name] = parse_extensions(text)
 
-        self.extension_filters = build_extension_filters(
-            self.extension_categories, self.extension_allow_all, self.extension_groups
+        # --- New extension controls ---
+        self.extension_mode: str = self._qs.value("extension_mode", "categories", type=str)
+        self.include_code: bool = self._qs.value("include_code", True, type=bool)
+        self.include_text: bool = self._qs.value("include_text", True, type=bool)
+        self.include_data: bool = self._qs.value("include_data", True, type=bool)
+
+        excluded_json = self._qs.value("excluded_subsets", "{}", type=str)
+        try:
+            self.excluded_subsets: Dict[str, List[str]] = json.loads(excluded_json) or {}
+        except Exception:
+            self.excluded_subsets = {}
+
+        self.included_extensions_text: str = self._qs.value(
+            "included_extensions_text", "", type=str
         )
+        self.excluded_extensions_text: str = self._qs.value(
+            "excluded_extensions_text", "", type=str
+        )
+        self.custom_extensions_text: str = self._qs.value("custom_extensions_text", "", type=str)
+
+        self.extension_filters = compute_extension_filters(self)
 
         # --- New Ignore Filters ---
         self.ignore_preset: str = self._qs.value("ignore_preset", DEFAULT_IGNORE_PRESET, type=str)
@@ -77,6 +96,16 @@ class AppSettings(QObject):
         for name, text in self.extension_group_texts.items():
             key = f"extensions_{name.replace(' ', '_').lower()}"
             self._qs.setValue(key, text)
+
+        # Persist new extension controls
+        self._qs.setValue("extension_mode", self.extension_mode)
+        self._qs.setValue("include_code", self.include_code)
+        self._qs.setValue("include_text", self.include_text)
+        self._qs.setValue("include_data", self.include_data)
+        self._qs.setValue("excluded_subsets", json.dumps(self.excluded_subsets or {}))
+        self._qs.setValue("included_extensions_text", self.included_extensions_text or "")
+        self._qs.setValue("excluded_extensions_text", self.excluded_extensions_text or "")
+        self._qs.setValue("custom_extensions_text", self.custom_extensions_text or "")
 
         # --- New ---
         self._qs.setValue("ignore_preset", self.ignore_preset or DEFAULT_IGNORE_PRESET)
@@ -118,7 +147,12 @@ class AppSettings(QObject):
     def set_extension_allow_all(self, value: bool):
         if self.extension_allow_all != value:
             self.extension_allow_all = value
-            self._rebuild_filters()
+            if value:
+                self.set_extension_mode("allow_all")
+            elif self.extension_mode == "allow_all":
+                self.set_extension_mode("categories")
+            else:
+                self._rebuild_filters()
 
     def set_extension_categories(self, categories: List[str]):
         if categories != self.extension_categories:
@@ -129,6 +163,66 @@ class AppSettings(QObject):
         if self.extension_group_texts.get(name) != text:
             self.extension_group_texts[name] = text
             self.extension_groups[name] = parse_extensions(text)
+            self._rebuild_filters()
+
+    def set_extension_mode(self, mode: str):
+        if mode not in {"categories", "allow_all", "custom"}:
+            mode = "categories"
+        if self.extension_mode != mode:
+            self.extension_mode = mode
+            self._rebuild_filters()
+
+    def set_include_code(self, value: bool):
+        if self.include_code != value:
+            self.include_code = value
+            self._rebuild_filters()
+
+    def set_include_text(self, value: bool):
+        if self.include_text != value:
+            self.include_text = value
+            self._rebuild_filters()
+
+    def set_include_data(self, value: bool):
+        if self.include_data != value:
+            self.include_data = value
+            self._rebuild_filters()
+
+    def set_excluded_subsets(self, mapping: Dict[str, List[str]]):
+        if mapping != self.excluded_subsets:
+            self.excluded_subsets = mapping
+            self._rebuild_filters()
+
+    def set_subset_excluded(self, category: str, subset: str, excluded: bool):
+        current = list(self.excluded_subsets.get(category, []))
+        changed = False
+        if excluded and subset not in current:
+            current.append(subset)
+            changed = True
+        elif not excluded and subset in current:
+            current.remove(subset)
+            changed = True
+
+        if changed:
+            mapping = dict(self.excluded_subsets)
+            if current:
+                mapping[category] = sorted(set(current))
+            elif category in mapping:
+                mapping.pop(category)
+            self.set_excluded_subsets(mapping)
+
+    def set_excluded_extensions_text(self, text: str):
+        if self.excluded_extensions_text != text:
+            self.excluded_extensions_text = text
+            self._rebuild_filters()
+
+    def set_included_extensions_text(self, text: str):
+        if self.included_extensions_text != text:
+            self.included_extensions_text = text
+            self._rebuild_filters()
+
+    def set_custom_extensions_text(self, text: str):
+        if self.custom_extensions_text != text:
+            self.custom_extensions_text = text
             self._rebuild_filters()
 
     def set_ignore_preset(self, preset_name: str):
@@ -156,6 +250,14 @@ class AppSettings(QObject):
         self.extension_allow_all = False
         self.extension_group_texts = {n: ",".join(v) for n, v in EXTENSION_GROUP_DEFAULTS.items()}
         self.extension_groups = {n: list(v) for n, v in EXTENSION_GROUP_DEFAULTS.items()}
+        self.extension_mode = "categories"
+        self.include_code = True
+        self.include_text = True
+        self.include_data = True
+        self.excluded_subsets = {}
+        self.included_extensions_text = ""
+        self.excluded_extensions_text = ""
+        self.custom_extensions_text = ""
         self._rebuild_filters()
         self.reset_ignore_filters()
 
@@ -175,9 +277,7 @@ class AppSettings(QObject):
             self.save()
 
     def _rebuild_filters(self):
-        self.extension_filters = build_extension_filters(
-            self.extension_categories, self.extension_allow_all, self.extension_groups
-        )
+        self.extension_filters = compute_extension_filters(self)
         self.save()
         self.extensionFiltersChanged.emit(self.extension_filters)
 

@@ -1,3 +1,6 @@
+import re
+
+
 EXTENSION_GROUP_DEFAULTS = {
     "Text Files": [
         ".txt",
@@ -51,7 +54,7 @@ def parse_categories(text: str) -> list[str]:
 
 def parse_extensions(text: str) -> list[str]:
     exts: list[str] = []
-    for item in text.split(","):
+    for item in re.split(r"[,\n]+", text):
         ext = item.strip().lower()
         if not ext:
             continue
