@@ -1,5 +1,6 @@
 # settings_tab.py (excerpt – key changes)
 from PyQt5.QtWidgets import (
+    QApplication,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -8,11 +9,18 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QPushButton,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QTextEdit,
 )
 from PyQt5.QtCore import Qt
 from functools import partial
 from extension_filters import EXTENSION_GROUP_DEFAULTS
-from ignore_filters import IGNORE_PRESETS
+from ignore_filters import (
+    DEFAULT_IGNORE_PRESET,
+    IGNORE_PRESETS,
+    get_ignore_set,
+)
 from app_context import AppContext
 
 def default_password_prompt(parent=None, user="", host=""):
@@ -115,11 +123,51 @@ class SettingsTab(QWidget):
         self.ignore_preset_combo.currentTextChanged.connect(self.on_ignore_preset_changed)
         inner_layout.addWidget(self.ignore_preset_combo)
 
+        self._last_non_custom_preset = (
+            self.ctx.settings.ignore_preset
+            if self.ctx.settings.ignore_preset != "Custom"
+            else DEFAULT_IGNORE_PRESET
+        )
+
+        self._apply_ignore_preset_tooltips()
+
+        self.ignore_preview_widget = QWidget()
+        preview_layout = QHBoxLayout()
+        preview_layout.setContentsMargins(0, 0, 0, 0)
+        self.ignore_count_label = QLabel("")
+        self.ignore_preview_label = QLabel("")
+        self.ignore_preview_label.setWordWrap(True)
+        self.ignore_preview_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.ignore_preview_label.setStyleSheet(
+            "font-family: 'Courier New', monospace;"
+        )
+        self.copy_ignores_btn = QPushButton("Copy")
+        self.copy_ignores_btn.clicked.connect(self.copy_current_ignores)
+        self.show_all_ignores_btn = QPushButton("Show all…")
+        self.show_all_ignores_btn.clicked.connect(self.show_all_ignores_dialog)
+        self.edit_as_custom_btn = QPushButton("Edit as Custom")
+        self.edit_as_custom_btn.clicked.connect(self.convert_preset_to_custom)
+        preview_layout.addWidget(self.ignore_count_label)
+        preview_layout.addWidget(self.ignore_preview_label, 1)
+        preview_layout.addWidget(self.copy_ignores_btn)
+        preview_layout.addWidget(self.show_all_ignores_btn)
+        preview_layout.addWidget(self.edit_as_custom_btn)
+        self.ignore_preview_widget.setLayout(preview_layout)
+        inner_layout.addWidget(self.ignore_preview_widget)
+
+        self.custom_ignore_container = QWidget()
+        custom_layout = QHBoxLayout()
+        custom_layout.setContentsMargins(0, 0, 0, 0)
         self.custom_ignore_field = QLineEdit()
         self.custom_ignore_field.setPlaceholderText("e.g., node_modules, .git, target")
         self.custom_ignore_field.setText(self.ctx.settings.custom_ignore_list)
         self.custom_ignore_field.textChanged.connect(self.on_custom_ignore_changed)
-        inner_layout.addWidget(self.custom_ignore_field)
+        self.reset_to_preset_btn = QPushButton("Reset to preset")
+        self.reset_to_preset_btn.clicked.connect(self.reset_ignore_to_preset)
+        custom_layout.addWidget(self.custom_ignore_field, 1)
+        custom_layout.addWidget(self.reset_to_preset_btn)
+        self.custom_ignore_container.setLayout(custom_layout)
+        inner_layout.addWidget(self.custom_ignore_container)
 
         self.update_ignore_ui_state()
         # --- End Ignore Filters UI ---
@@ -173,11 +221,23 @@ class SettingsTab(QWidget):
         self.custom_ignore_field.blockSignals(False)
 
     def update_ignore_ui_state(self):
+        if not hasattr(self, "custom_ignore_container"):
+            return
         is_custom = self.ignore_preset_combo.currentText() == "Custom"
+        self.custom_ignore_container.setVisible(is_custom)
         self.custom_ignore_field.setVisible(is_custom)
+        self.ignore_preview_widget.setVisible(not is_custom)
+        self.copy_ignores_btn.setVisible(not is_custom)
+        self.show_all_ignores_btn.setVisible(not is_custom)
+        self.edit_as_custom_btn.setVisible(not is_custom)
+        self.reset_to_preset_btn.setVisible(is_custom)
+        if not is_custom:
+            self._refresh_ignore_preview()
 
     def on_ignore_preset_changed(self, preset_name: str):
         self.ctx.settings.set_ignore_preset(preset_name)
+        if preset_name != "Custom":
+            self._last_non_custom_preset = preset_name
         self.update_ignore_ui_state()
 
     def on_custom_ignore_changed(self, text: str):
@@ -187,6 +247,76 @@ class SettingsTab(QWidget):
             self.ignore_preset_combo.setCurrentText("Custom")
             self.ignore_preset_combo.blockSignals(False)
             self.ctx.settings.set_ignore_preset("Custom")
+            self.update_ignore_ui_state()
+
+    def _current_ignore_items(self):
+        items = get_ignore_set(
+            self.ignore_preset_combo.currentText(),
+            self.custom_ignore_field.text(),
+        )
+        return sorted(items, key=str.lower)
+
+    def _refresh_ignore_preview(self, max_items: int = 10):
+        items = self._current_ignore_items()
+        total = len(items)
+        if total == 0:
+            preview_text = "(empty)"
+        else:
+            shown_items = items[:max_items]
+            preview_text = ", ".join(shown_items)
+            if total > max_items:
+                preview_text += ", …more"
+        self.ignore_count_label.setText(f"{total} item{'s' if total != 1 else ''}")
+        self.ignore_preview_label.setText(preview_text)
+
+    def copy_current_ignores(self):
+        items = self._current_ignore_items()
+        QApplication.clipboard().setText(", ".join(items))
+
+    def show_all_ignores_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Ignored folders")
+        layout = QVBoxLayout(dialog)
+        text = QTextEdit()
+        text.setReadOnly(True)
+        text.setPlainText("\n".join(self._current_ignore_items()))
+        text.setStyleSheet("font-family: 'Courier New', monospace;")
+        layout.addWidget(text)
+        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        copy_btn = buttons.addButton("Copy all", QDialogButtonBox.ActionRole)
+
+        def _copy_all():
+            QApplication.clipboard().setText(", ".join(self._current_ignore_items()))
+
+        copy_btn.clicked.connect(_copy_all)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.resize(520, 380)
+        dialog.exec_()
+
+    def convert_preset_to_custom(self):
+        items = self._current_ignore_items()
+        self.custom_ignore_field.setText(", ".join(items))
+        self.ignore_preset_combo.setCurrentText("Custom")
+        self.custom_ignore_field.setFocus()
+
+    def reset_ignore_to_preset(self):
+        target = self._last_non_custom_preset or DEFAULT_IGNORE_PRESET
+        self.ignore_preset_combo.setCurrentText(target)
+
+    def _apply_ignore_preset_tooltips(self):
+        model = self.ignore_preset_combo.model()
+        for row, name in enumerate(IGNORE_PRESETS.keys()):
+            items = sorted(IGNORE_PRESETS[name], key=str.lower)
+            if not items:
+                tip = "(empty)"
+            else:
+                preview_items = items[:20]
+                tip = ", ".join(preview_items)
+                if len(items) > 20:
+                    tip += f", … (+{len(items) - 20} more)"
+            index = model.index(row, 0)
+            model.setData(index, tip, Qt.ToolTipRole)
 
     def redraw(self):
         # hook if you later need to restyle per theme
