@@ -1,8 +1,18 @@
 # settings_tab.py (excerpt – key changes)
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QCheckBox, QLabel, QLineEdit, QPushButton
+from PyQt5.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QCheckBox,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QComboBox,
+)
 from PyQt5.QtCore import Qt
 from functools import partial
 from extension_filters import EXTENSION_GROUP_DEFAULTS
+from ignore_filters import IGNORE_PRESETS
 from app_context import AppContext
 
 def default_password_prompt(parent=None, user="", host=""):
@@ -94,6 +104,26 @@ class SettingsTab(QWidget):
         reset_btn.clicked.connect(self.reset_extensions)
         inner_layout.addWidget(reset_btn)
 
+        # --- Ignore Filters UI ---
+        inner_layout.addSpacing(10)
+        ignore_label = QLabel("Ignored Folder Presets:")
+        inner_layout.addWidget(ignore_label)
+
+        self.ignore_preset_combo = QComboBox()
+        self.ignore_preset_combo.addItems(list(IGNORE_PRESETS.keys()))
+        self.ignore_preset_combo.setCurrentText(self.ctx.settings.ignore_preset)
+        self.ignore_preset_combo.currentTextChanged.connect(self.on_ignore_preset_changed)
+        inner_layout.addWidget(self.ignore_preset_combo)
+
+        self.custom_ignore_field = QLineEdit()
+        self.custom_ignore_field.setPlaceholderText("e.g., node_modules, .git, target")
+        self.custom_ignore_field.setText(self.ctx.settings.custom_ignore_list)
+        self.custom_ignore_field.textChanged.connect(self.on_custom_ignore_changed)
+        inner_layout.addWidget(self.custom_ignore_field)
+
+        self.update_ignore_ui_state()
+        # --- End Ignore Filters UI ---
+
         # Layout
         content_widget = QWidget()
         content_widget.setLayout(inner_layout)
@@ -132,6 +162,31 @@ class SettingsTab(QWidget):
             box.setChecked(name in self.ctx.settings.extension_categories)
         for name, field in self.extension_fields.items():
             field.setText(self.ctx.settings.extension_group_texts[name])
+
+        # Update ignore filters UI
+        self.ignore_preset_combo.blockSignals(True)
+        self.custom_ignore_field.blockSignals(True)
+        self.ignore_preset_combo.setCurrentText(self.ctx.settings.ignore_preset)
+        self.custom_ignore_field.setText(self.ctx.settings.custom_ignore_list)
+        self.update_ignore_ui_state()
+        self.ignore_preset_combo.blockSignals(False)
+        self.custom_ignore_field.blockSignals(False)
+
+    def update_ignore_ui_state(self):
+        is_custom = self.ignore_preset_combo.currentText() == "Custom"
+        self.custom_ignore_field.setVisible(is_custom)
+
+    def on_ignore_preset_changed(self, preset_name: str):
+        self.ctx.settings.set_ignore_preset(preset_name)
+        self.update_ignore_ui_state()
+
+    def on_custom_ignore_changed(self, text: str):
+        self.ctx.settings.set_custom_ignore_list(text)
+        if self.ignore_preset_combo.currentText() != "Custom":
+            self.ignore_preset_combo.blockSignals(True)
+            self.ignore_preset_combo.setCurrentText("Custom")
+            self.ignore_preset_combo.blockSignals(False)
+            self.ctx.settings.set_ignore_preset("Custom")
 
     def redraw(self):
         # hook if you later need to restyle per theme

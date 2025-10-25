@@ -1,6 +1,6 @@
 # settings_store.py
 from __future__ import annotations
-from typing import Dict, List
+from typing import Dict, List, Set
 from PyQt5.QtCore import QObject, pyqtSignal, QSettings
 
 from extension_filters import (
@@ -10,6 +10,12 @@ from extension_filters import (
     parse_extensions,
     build_extension_filters,
 )
+from ignore_filters import (
+    IGNORE_PRESETS,
+    DEFAULT_IGNORE_PRESET,
+    get_ignore_set,
+    parse_ignore_list,
+)
 
 class AppSettings(QObject):
     # High-level signals
@@ -17,6 +23,7 @@ class AppSettings(QObject):
     themeChanged = pyqtSignal(bool)
     sshConfigChanged = pyqtSignal(str, str)               # host, username
     extensionFiltersChanged = pyqtSignal(object)          # new filters
+    ignoreFiltersChanged = pyqtSignal(object)             # new ignore filters
 
     def __init__(self, org: str = "Dynamint", app: str = "FileConcatenator"):
         super().__init__()
@@ -45,6 +52,12 @@ class AppSettings(QObject):
             self.extension_categories, self.extension_allow_all, self.extension_groups
         )
 
+        # --- New Ignore Filters ---
+        self.ignore_preset: str = self._qs.value("ignore_preset", DEFAULT_IGNORE_PRESET, type=str)
+        self.custom_ignore_list: str = self._qs.value("custom_ignore_list", "", type=str)
+        self.ignore_filters: Set[str] = get_ignore_set(self.ignore_preset, self.custom_ignore_list)
+        # --- End New ---
+
         self.ssh_host: str = self._qs.value("ssh_host", "", type=str)
         self.ssh_username: str = self._qs.value("ssh_username", "", type=str)
 
@@ -64,6 +77,11 @@ class AppSettings(QObject):
         for name, text in self.extension_group_texts.items():
             key = f"extensions_{name.replace(' ', '_').lower()}"
             self._qs.setValue(key, text)
+
+        # --- New ---
+        self._qs.setValue("ignore_preset", self.ignore_preset or DEFAULT_IGNORE_PRESET)
+        self._qs.setValue("custom_ignore_list", self.custom_ignore_list or "")
+        # --- End New ---
 
         self._qs.setValue("ssh_host", self.ssh_host or "")
         self._qs.setValue("ssh_username", self.ssh_username or "")
@@ -113,12 +131,33 @@ class AppSettings(QObject):
             self.extension_groups[name] = parse_extensions(text)
             self._rebuild_filters()
 
+    def set_ignore_preset(self, preset_name: str):
+        if preset_name not in IGNORE_PRESETS:
+            preset_name = DEFAULT_IGNORE_PRESET
+        if self.ignore_preset != preset_name:
+            self.ignore_preset = preset_name
+            self._rebuild_ignore_filters()
+
+    def set_custom_ignore_list(self, text: str):
+        if self.custom_ignore_list != text:
+            self.custom_ignore_list = text
+            if self.ignore_preset == "Custom":
+                self._rebuild_ignore_filters()
+            else:
+                self.save()
+
+    def reset_ignore_filters(self):
+        self.ignore_preset = DEFAULT_IGNORE_PRESET
+        self.custom_ignore_list = ""
+        self._rebuild_ignore_filters()
+
     def reset_extension_settings(self):
         self.extension_categories = list(DEFAULT_EXTENSION_CATEGORIES)
         self.extension_allow_all = False
         self.extension_group_texts = {n: ",".join(v) for n, v in EXTENSION_GROUP_DEFAULTS.items()}
         self.extension_groups = {n: list(v) for n, v in EXTENSION_GROUP_DEFAULTS.items()}
         self._rebuild_filters()
+        self.reset_ignore_filters()
 
     def set_last_preset(self, preset: str):
         if self.last_preset != preset:
@@ -141,3 +180,13 @@ class AppSettings(QObject):
         )
         self.save()
         self.extensionFiltersChanged.emit(self.extension_filters)
+
+    def _rebuild_ignore_filters(self):
+        if self.ignore_preset == "Custom":
+            self.ignore_filters = parse_ignore_list(self.custom_ignore_list)
+        else:
+            self.ignore_filters = get_ignore_set(
+                self.ignore_preset, self.custom_ignore_list
+            )
+        self.save()
+        self.ignoreFiltersChanged.emit(self.ignore_filters)

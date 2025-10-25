@@ -1,6 +1,7 @@
 import sys
 import os
-from typing import Optional
+import fnmatch
+from typing import Optional, Set
 
 def resource_path(rel_path: str) -> str:
     """
@@ -45,11 +46,23 @@ def safe_relpath(path: str, start: Optional[str]) -> tuple[str, Optional[str]]:
         return path, msg
 
 
-def list_files(directory: str, extensions: Optional[list[str]] = None) -> list[str]:
-    """Return a list of files under ``directory`` filtered by extensions."""
+def list_files(
+    directory: str,
+    extensions: Optional[list[str]] = None,
+    ignore_folders: Optional[Set[str]] = None,
+) -> list[str]:
+    """
+    Return a list of files under ``directory`` filtered by extensions
+    and skipping specified ignored folders.
+    """
     selected: list[str] = []
     normalized = [ext.lower() for ext in extensions] if extensions else None
-    for root, _, files in os.walk(directory):
+    for root, dirs, files in os.walk(directory, topdown=True):
+        if ignore_folders:
+            dirs[:] = [
+                d for d in dirs
+                if not any(fnmatch.fnmatch(d, pattern) for pattern in ignore_folders)
+            ]
         for name in files:
             if normalized:
                 ext = os.path.splitext(name)[1].lower()

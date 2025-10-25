@@ -221,9 +221,11 @@ class FileListWidget(QListWidget):
         if folder_path:
             settings = getattr(self.ctx, "settings", None)
             filters = settings.extension_filters if settings else None
+            ignores = settings.ignore_filters if settings else None
             files = list_files(
                 folder_path,
                 filters,
+                ignores,
             )
             allowed_files = [f for f in files if self.is_allowed(f)]
             if allowed_files:
@@ -234,7 +236,7 @@ class FileListWidget(QListWidget):
                     self.update_list_display()
                     self._notify_change()
             else:
-                all_files = list_files(folder_path, None)
+                all_files = list_files(folder_path, None, ignores)
                 if not all_files:
                     QMessageBox.information(
                         self,
