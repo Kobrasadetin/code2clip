@@ -58,6 +58,43 @@ IGNORE_PRESETS: Dict[str, Set[str]] = {
     "Custom": set()  # "Custom" preset is managed by user text
 }
 
+IGNORE_PRESET_DESCRIPTIONS: Dict[str, str] = {
+    "None": "Scans every subfolder without applying folder exclusions.",
+    "Global-Lean": (
+        "Skips common version-control metadata, editor settings, caches, "
+        "dependencies, and build output."
+    ),
+    "Web/Node": (
+        "Uses Global-Lean plus folders created by common web and Node.js tools."
+    ),
+    "Pythonic": (
+        "Uses Global-Lean plus Python environments, caches, packages, and "
+        "documentation output."
+    ),
+    "JVM/Android": (
+        "Uses Global-Lean plus Gradle, Maven, Android, and native build output."
+    ),
+    ".NET/Unity": (
+        "Uses Global-Lean plus .NET build artifacts and Unity-generated folders."
+    ),
+    "C/C++/CMake": (
+        "Uses Global-Lean plus common CMake, Conan, and vcpkg build folders."
+    ),
+    "Apple/Swift/Xcode": (
+        "Uses Global-Lean plus Swift, Xcode, CocoaPods, and Carthage output."
+    ),
+    "Custom": "Skips folder names matching the comma-separated patterns below.",
+}
+
+
+def get_ignore_preset_description(preset_name: str) -> str:
+    """Return a short, user-facing description of an ignore preset."""
+    return IGNORE_PRESET_DESCRIPTIONS.get(
+        preset_name,
+        IGNORE_PRESET_DESCRIPTIONS[DEFAULT_IGNORE_PRESET],
+    )
+
+
 def parse_ignore_list(text: str) -> Set[str]:
     """Converts a comma-separated string into a set of folder names."""
     return {item.strip() for item in text.split(",") if item.strip()}

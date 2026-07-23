@@ -8,11 +8,17 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QPushButton,
     QComboBox,
+    QMessageBox,
+    QToolButton,
 )
 from PyQt5.QtCore import Qt
 from functools import partial
 from extension_filters import EXTENSION_GROUP_DEFAULTS
-from ignore_filters import IGNORE_PRESETS
+from ignore_filters import (
+    IGNORE_PRESETS,
+    get_ignore_preset_description,
+    get_ignore_set,
+)
 from app_context import AppContext
 
 def default_password_prompt(parent=None, user="", host=""):
@@ -106,14 +112,34 @@ class SettingsTab(QWidget):
 
         # --- Ignore Filters UI ---
         inner_layout.addSpacing(10)
-        ignore_label = QLabel("Ignored Folder Presets:")
+        ignore_label = QLabel("Ignored Folders:")
         inner_layout.addWidget(ignore_label)
 
+        ignore_row = QHBoxLayout()
         self.ignore_preset_combo = QComboBox()
         self.ignore_preset_combo.addItems(list(IGNORE_PRESETS.keys()))
+        for index in range(self.ignore_preset_combo.count()):
+            preset_name = self.ignore_preset_combo.itemText(index)
+            self.ignore_preset_combo.setItemData(
+                index,
+                get_ignore_preset_description(preset_name),
+                Qt.ToolTipRole,
+            )
+        self.ignore_preset_combo.view().setMouseTracking(True)
         self.ignore_preset_combo.setCurrentText(self.ctx.settings.ignore_preset)
         self.ignore_preset_combo.currentTextChanged.connect(self.on_ignore_preset_changed)
-        inner_layout.addWidget(self.ignore_preset_combo)
+        ignore_row.addWidget(self.ignore_preset_combo)
+
+        self.ignore_help_button = QToolButton()
+        self.ignore_help_button.setText("?")
+        self.ignore_help_button.setAutoRaise(True)
+        self.ignore_help_button.setAccessibleName("Explain ignored folder preset")
+        self.ignore_help_button.setToolTip(
+            "Explain the selected ignored-folder preset"
+        )
+        self.ignore_help_button.clicked.connect(self.show_ignore_rule_help)
+        ignore_row.addWidget(self.ignore_help_button)
+        inner_layout.addLayout(ignore_row)
 
         self.custom_ignore_field = QLineEdit()
         self.custom_ignore_field.setPlaceholderText("e.g., node_modules, .git, target")
@@ -173,8 +199,12 @@ class SettingsTab(QWidget):
         self.custom_ignore_field.blockSignals(False)
 
     def update_ignore_ui_state(self):
-        is_custom = self.ignore_preset_combo.currentText() == "Custom"
+        preset_name = self.ignore_preset_combo.currentText()
+        is_custom = preset_name == "Custom"
         self.custom_ignore_field.setVisible(is_custom)
+        self.ignore_preset_combo.setToolTip(
+            get_ignore_preset_description(preset_name)
+        )
 
     def on_ignore_preset_changed(self, preset_name: str):
         self.ctx.settings.set_ignore_preset(preset_name)
@@ -187,6 +217,37 @@ class SettingsTab(QWidget):
             self.ignore_preset_combo.setCurrentText("Custom")
             self.ignore_preset_combo.blockSignals(False)
             self.ctx.settings.set_ignore_preset("Custom")
+
+    def show_ignore_rule_help(self):
+        preset_name = self.ignore_preset_combo.currentText()
+        patterns = sorted(
+            get_ignore_set(
+                preset_name,
+                self.custom_ignore_field.text(),
+            ),
+            key=str.lower,
+        )
+
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("Ignored Folder Rule")
+        dialog.setIcon(QMessageBox.Information)
+        dialog.setText(
+            f"<b>{preset_name}</b><br>"
+            f"{get_ignore_preset_description(preset_name)}"
+        )
+        dialog.setInformativeText(
+            "When you add a folder, matching subfolders are not scanned. "
+            "Patterns match folder names and may contain wildcards. Files "
+            "added individually are unaffected."
+        )
+        if patterns:
+            dialog.setDetailedText(
+                f"Active patterns ({len(patterns)}):\n"
+                + "\n".join(patterns)
+            )
+        else:
+            dialog.setDetailedText("No folder patterns are currently active.")
+        dialog.exec_()
 
     def redraw(self):
         # hook if you later need to restyle per theme

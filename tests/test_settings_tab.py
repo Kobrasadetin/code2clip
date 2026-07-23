@@ -3,6 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication
 
 from settings_tab import SettingsTab
@@ -74,6 +75,10 @@ class TestSettingsTabIgnoreUI(unittest.TestCase):
         # --- FIX: Check the *call* not the *state* ---
         self.tab.custom_ignore_field.setVisible.assert_called_with(False)
         # --- End Fix ---
+        self.assertIn(
+            "version-control metadata",
+            self.tab.ignore_preset_combo.toolTip(),
+        )
 
     def test_ui_state_custom(self):
         """Test that custom field is visible when 'Custom' is selected."""
@@ -98,6 +103,30 @@ class TestSettingsTabIgnoreUI(unittest.TestCase):
         # Check that the settings store was updated
         self.ctx.settings.set_ignore_preset.assert_called_with("Custom")
         self.ctx.settings.set_custom_ignore_list.assert_called_with("foo")
+
+    def test_dropdown_items_have_explanatory_tooltips(self):
+        for index in range(self.tab.ignore_preset_combo.count()):
+            tooltip = self.tab.ignore_preset_combo.itemData(
+                index,
+                Qt.ToolTipRole,
+            )
+            self.assertTrue(tooltip)
+
+    @mock.patch("settings_tab.QMessageBox")
+    def test_help_dialog_explains_current_rule(self, message_box):
+        self.tab.ignore_preset_combo.setCurrentText("Custom")
+        self.tab.custom_ignore_field.setText("vendor, generated-*")
+
+        self.tab.show_ignore_rule_help()
+
+        dialog = message_box.return_value
+        dialog.setWindowTitle.assert_called_once_with("Ignored Folder Rule")
+        dialog.setText.assert_called_once()
+        dialog.setInformativeText.assert_called_once()
+        details = dialog.setDetailedText.call_args.args[0]
+        self.assertIn("generated-*", details)
+        self.assertIn("vendor", details)
+        dialog.exec_.assert_called_once_with()
 
     def test_reset_button_resets_ignore_ui(self):
         """Test that the reset button resets the ignore filter UI."""

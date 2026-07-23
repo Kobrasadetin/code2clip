@@ -1,7 +1,9 @@
 import unittest
 from ignore_filters import (
+    IGNORE_PRESET_DESCRIPTIONS,
     parse_ignore_list,
     get_ignore_set,
+    get_ignore_preset_description,
     GLOBAL_LEAN,
     DEFAULT_IGNORE_PRESET,
     IGNORE_PRESETS,
@@ -18,6 +20,18 @@ class TestParseIgnoreList(unittest.TestCase):
         self.assertEqual(parse_ignore_list(', ,'), set())
 
 class TestGetIgnoreSet(unittest.TestCase):
+    def test_every_preset_has_a_description(self):
+        self.assertEqual(
+            set(IGNORE_PRESET_DESCRIPTIONS),
+            set(IGNORE_PRESETS),
+        )
+
+    def test_unknown_preset_uses_default_description(self):
+        self.assertEqual(
+            get_ignore_preset_description("Unknown"),
+            get_ignore_preset_description(DEFAULT_IGNORE_PRESET),
+        )
+
     def test_get_preset(self):
         result = get_ignore_set("Global-Lean", "", IGNORE_PRESETS)
         self.assertEqual(result, GLOBAL_LEAN)
