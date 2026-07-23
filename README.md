@@ -1,7 +1,3 @@
-Here’s a tightened README that matches the new **Windows = ZIPped onedir** packaging, keeps macOS app wrapping, and adds quick run notes per platform. I also swapped the repo placeholder to your GitHub handle.
-
----
-
 # Code2Clip — File Concatenator
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
@@ -83,6 +79,16 @@ Hello World
 Goodbye World
 </file>
 ```
+
+---
+
+## Crostini / Wayland notes
+
+ChromeOS Crostini sessions default to Wayland. Code2Clip works best when every app interacting with it (e.g., VS Code) uses the same windowing backend.
+
+- Launch Code2Clip normally (Wayland) and start VS Code with Wayland enabled, e.g. `ELECTRON_OZONE_PLATFORM_HINT=wayland code` or `code --ozone-platform-hint=auto`.
+- If you need to fall back to X11 for compatibility, run Code2Clip with `QT_QPA_PLATFORM=xcb python code2clip.py` (or set `QT_QPA_PLATFORM=xcb` before launching the packaged binary). Drag and drop then expects other apps to use X11 as well.
+- To silence noisy compositor warnings from Qt on Crostini, you can set `QT_LOGGING_RULES="qt.qpa.wayland.warning=false"` when launching.
 
 ---
 
