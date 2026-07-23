@@ -314,5 +314,111 @@ class FileListWidgetTest(unittest.TestCase):
             ],
         )
 
+    def test_root_folder_options_include_eligible_ancestors(self):
+        widget = self.create_widget(True, [])
+        widget.root_path = "/src"
+        widget.files = [
+            "/src/packages/lib/somefile.md",
+            "/src/packages/lib/other.md",
+            "/src/packages/readme.md",
+            "/src/main.py",
+            "/outside/keep.py",
+        ]
+
+        options = widget.folder_removal_options(widget.files[0])
+
+        self.assertEqual(
+            [folder for folder, _files in options],
+            ["/src/packages/lib", "/src/packages", "/src"],
+        )
+        self.assertEqual(
+            [len(files) for _folder, files in options],
+            [2, 3, 4],
+        )
+
+    def test_root_folder_options_do_not_escape_configured_root(self):
+        widget = self.create_widget(True, [])
+        widget.root_path = "/src/packages"
+        widget.files = [
+            "/src/packages/lib/somefile.md",
+            "/src/packages/lib/other.md",
+            "/src/keep.py",
+        ]
+
+        options = widget.folder_removal_options(widget.files[0])
+
+        self.assertEqual(
+            [folder for folder, _files in options],
+            ["/src/packages/lib", "/src/packages"],
+        )
+
+    def test_no_root_offers_only_current_folder_and_parent(self):
+        widget = self.create_widget(True, [])
+        widget.files = [
+            "/src/packages/lib/somefile.md",
+            "/src/packages/lib/other.md",
+            "/src/packages/readme.md",
+            "/src/main.py",
+        ]
+
+        options = widget.folder_removal_options(widget.files[0])
+
+        self.assertEqual(
+            [folder for folder, _files in options],
+            ["/src/packages/lib", "/src/packages"],
+        )
+
+    def test_folder_option_requires_another_listed_file(self):
+        widget = self.create_widget(True, [])
+        widget.root_path = "/src"
+        widget.files = [
+            "/src/packages/lib/somefile.md",
+            "/elsewhere/keep.py",
+        ]
+
+        self.assertEqual(
+            widget.folder_removal_options(widget.files[0]),
+            [],
+        )
+
+    def test_folder_option_is_hidden_when_it_matches_remove_all(self):
+        widget = self.create_widget(True, [])
+        widget.root_path = "/src"
+        widget.files = [
+            "/src/packages/lib/somefile.md",
+            "/src/packages/lib/other.md",
+            "/src/readme.md",
+        ]
+
+        options = widget.folder_removal_options(widget.files[0])
+
+        self.assertEqual(
+            [folder for folder, _files in options],
+            ["/src/packages/lib", "/src/packages"],
+        )
+
+    def test_remove_files_in_folder_only_changes_listing(self):
+        widget = self.create_widget(True, [])
+        widget.files = [
+            "/src/packages/lib/one.md",
+            "/src/packages/lib/nested/two.md",
+            "/src/packages/library/keep.md",
+        ]
+        notifications = []
+        redraws = []
+        widget._change_callback = lambda: notifications.append(True)
+        widget.update_list_display = lambda: redraws.append(True)
+
+        with patch("file_list_widget.os.remove") as remove:
+            widget.remove_files_in_folder("/src/packages/lib")
+
+        self.assertEqual(
+            widget.files,
+            ["/src/packages/library/keep.md"],
+        )
+        self.assertEqual(redraws, [True])
+        self.assertEqual(notifications, [True])
+        remove.assert_not_called()
+
 if __name__ == '__main__':
     unittest.main()

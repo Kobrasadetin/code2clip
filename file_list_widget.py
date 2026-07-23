@@ -165,9 +165,22 @@ class FileListWidget(QListWidget):
         item = self.itemAt(event.pos())
         menu = QMenu(self)
 
-        if item:           
+        if item:
             remove_action = menu.addAction("Remove File")
             remove_action.triggered.connect(partial(self.remove_item, item))
+
+            folder_options = self.folder_removal_options(
+                item.data(Qt.UserRole)
+            )
+            for folder_path, matching_files in folder_options:
+                label = self._folder_action_label(
+                    folder_path,
+                    len(matching_files),
+                )
+                folder_action = menu.addAction(label)
+                folder_action.triggered.connect(
+                    partial(self.remove_files_in_folder, folder_path)
+                )
 
             encoding_action = menu.addAction("Check Encoding")
             encoding_action.triggered.connect(partial(self.check_encoding, item))
@@ -454,6 +467,101 @@ class FileListWidget(QListWidget):
         row = self.row(item)
         del self.files[row]
         self.takeItem(row)
+        self._notify_change()
+
+    def _path_module(self, filepath):
+        if self._looks_like_windows_path(filepath):
+            return ntpath
+        return posixpath
+
+    def _is_in_folder(self, filepath, folder_path):
+        path_module = self._path_module(folder_path)
+        normalized_file = path_module.normcase(
+            path_module.normpath(filepath)
+        )
+        normalized_folder = path_module.normcase(
+            path_module.normpath(folder_path)
+        )
+        try:
+            return (
+                path_module.commonpath(
+                    [normalized_file, normalized_folder]
+                )
+                == normalized_folder
+            )
+        except ValueError:
+            return False
+
+    def _candidate_removal_folders(self, filepath):
+        path_module = self._path_module(filepath)
+        current_folder = path_module.dirname(
+            path_module.normpath(filepath)
+        )
+        if not current_folder:
+            return []
+
+        if not self.root_path:
+            candidates = [current_folder]
+            parent = path_module.dirname(current_folder)
+            if parent and parent != current_folder:
+                candidates.append(parent)
+            return candidates
+
+        root = path_module.normpath(self.root_path)
+        if not self._is_in_folder(filepath, root):
+            return []
+
+        candidates = []
+        folder = current_folder
+        while self._is_in_folder(folder, root):
+            candidates.append(folder)
+            if path_module.normcase(folder) == path_module.normcase(root):
+                break
+            parent = path_module.dirname(folder)
+            if not parent or parent == folder:
+                break
+            folder = parent
+        return candidates
+
+    def folder_removal_options(self, filepath):
+        selected_key = self._canonical_key(filepath)
+        options = []
+        for folder_path in self._candidate_removal_folders(filepath):
+            matching_files = [
+                listed_file
+                for listed_file in self.files
+                if self._is_in_folder(listed_file, folder_path)
+            ]
+            if len(matching_files) == len(self.files):
+                continue
+            if any(
+                self._canonical_key(listed_file) != selected_key
+                for listed_file in matching_files
+            ):
+                options.append((folder_path, matching_files))
+        return options
+
+    def _folder_action_label(self, folder_path, file_count):
+        separator = (
+            "\\"
+            if self._looks_like_windows_path(folder_path)
+            else "/"
+        )
+        display_path = folder_path
+        if not display_path.endswith(("/", "\\")):
+            display_path += separator
+        return f"Remove {file_count} Files in {display_path}"
+
+    def remove_files_in_folder(self, folder_path):
+        remaining_files = [
+            filepath
+            for filepath in self.files
+            if not self._is_in_folder(filepath, folder_path)
+        ]
+        if len(remaining_files) == len(self.files):
+            return
+        self.files = remaining_files
+        self.update_list_display()
         self._notify_change()
 
     def remove_all(self):
