@@ -85,7 +85,7 @@ jobs:
           compression-level: 0
           if-no-files-found: error
   build-intel-macos:
-    runs-on: macos-13
+    runs-on: macos-15-intel
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
