@@ -17,10 +17,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.9'
 
@@ -78,7 +78,7 @@ jobs:
         shell: bash
 
       - name: Upload Binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Code2Clip-${{ matrix.os }}
           path: ${{ env.BINARY_PATH }}
@@ -88,10 +88,10 @@ jobs:
     runs-on: macos-13
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v7
         with:
           python-version: '3.9'
 
@@ -128,27 +128,30 @@ jobs:
           echo "BINARY_PATH=dist/Code2Clip-macos-intel.zip" >> $GITHUB_ENV
 
       - name: Upload Intel macOS app
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Code2Clip-macos-intel
           path: ${{ env.BINARY_PATH }}
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs:
+      - build
+      - build-intel-macos
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: binaries
           merge-multiple: true
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           files: binaries/**
-          token: ${{ secrets.GH_PAT }}
