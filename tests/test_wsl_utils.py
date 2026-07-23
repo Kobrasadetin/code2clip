@@ -12,10 +12,11 @@ class TestConvertWslPath(unittest.TestCase):
     def test_windows_conversion(self):
         with mock.patch('platform.system', return_value='Windows'), \
              mock.patch('wsl_utilities.get_default_wsl_distro', return_value='Ubuntu'), \
-             mock.patch('os.path.isfile', return_value=True):
+             mock.patch('os.path.isfile') as mock_isfile:
             result = wsl_utilities.convert_wsl_path('/home/user/file')
             expected = '\\\\wsl.localhost\\Ubuntu\\home\\user\\file'
             self.assertEqual(result, expected)
+            mock_isfile.assert_not_called()
 
     def test_windows_no_conversion(self):
         with mock.patch('platform.system', return_value='Windows'), \

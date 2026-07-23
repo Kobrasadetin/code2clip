@@ -100,6 +100,173 @@ class FileListWidgetTest(unittest.TestCase):
 
         self.assertEqual(widget.files, ['/tmp/sample.py'])
 
+    def test_oversized_clipboard_is_rejected_before_filesystem_access(self):
+        widget = self.create_widget(True, [])
+
+        class DummyClipboard:
+            def text(self):
+                return "x" * (self_limit + 1)
+
+        self_limit = self.fw_module.MAX_CLIPBOARD_TEXT_CHARS
+        dummy_app = type(
+            'DummyApp',
+            (),
+            {'clipboard': staticmethod(lambda: DummyClipboard())},
+        )
+        self.fw_module.QApplication = dummy_app
+
+        with patch('file_list_widget.os.path.exists') as mock_exists, \
+                patch.object(
+                    self.fw_module.QMessageBox,
+                    'warning',
+                    create=True,
+                ) as mock_warning:
+            widget.add_clipboard_files()
+
+        mock_exists.assert_not_called()
+        mock_warning.assert_called_once()
+        self.assertEqual(widget.files, [])
+
+    def test_too_many_clipboard_lines_are_rejected_before_path_conversion(self):
+        widget = self.create_widget(True, [])
+        line_count = self.fw_module.MAX_CLIPBOARD_PATHS + 1
+
+        class DummyClipboard:
+            def text(self):
+                return "\n".join(f"file-{number}.txt" for number in range(line_count))
+
+        dummy_app = type(
+            'DummyApp',
+            (),
+            {'clipboard': staticmethod(lambda: DummyClipboard())},
+        )
+        self.fw_module.QApplication = dummy_app
+
+        with patch('file_list_widget.convert_wsl_path') as mock_convert, \
+                patch('file_list_widget.os.path.exists') as mock_exists, \
+                patch.object(
+                    self.fw_module.QMessageBox,
+                    'warning',
+                    create=True,
+                ):
+            widget.add_clipboard_files()
+
+        mock_convert.assert_not_called()
+        mock_exists.assert_not_called()
+
+    def test_unsafe_device_path_is_rejected_before_filesystem_access(self):
+        widget = self.create_widget(True, [])
+
+        class DummyClipboard:
+            def text(self):
+                return "NUL.txt"
+
+        dummy_app = type(
+            'DummyApp',
+            (),
+            {'clipboard': staticmethod(lambda: DummyClipboard())},
+        )
+        self.fw_module.QApplication = dummy_app
+
+        with patch('file_list_widget.os.path.exists') as mock_exists, \
+                patch.object(
+                    self.fw_module.QMessageBox,
+                    'warning',
+                    create=True,
+                ):
+            widget.add_clipboard_files()
+
+        mock_exists.assert_not_called()
+        self.assertEqual(widget.files, [])
+
+    def test_clipboard_add_is_batched_into_one_redraw_and_notification(self):
+        widget = self.create_widget(True, [])
+        redraws = []
+        notifications = []
+        widget.update_list_display = lambda: redraws.append(True)
+        widget._change_callback = lambda: notifications.append(True)
+
+        class DummyClipboard:
+            def text(self):
+                return "/tmp/one.py\n/tmp/two.py"
+
+        dummy_app = type(
+            'DummyApp',
+            (),
+            {'clipboard': staticmethod(lambda: DummyClipboard())},
+        )
+        self.fw_module.QApplication = dummy_app
+
+        with patch('file_list_widget.os.path.exists', return_value=True):
+            widget.add_clipboard_files()
+
+        self.assertEqual(widget.files, ['/tmp/one.py', '/tmp/two.py'])
+        self.assertEqual(len(redraws), 1)
+        self.assertEqual(len(notifications), 1)
+
+    def test_clipboard_add_ignores_reentrant_invocation(self):
+        widget = self.create_widget(True, [])
+
+        class DummyClipboard:
+            def text(self):
+                return "/tmp/one.py"
+
+        dummy_app = type(
+            'DummyApp',
+            (),
+            {'clipboard': staticmethod(lambda: DummyClipboard())},
+        )
+        self.fw_module.QApplication = dummy_app
+        exists_calls = []
+
+        def reentrant_exists(_path):
+            exists_calls.append(True)
+            widget.add_clipboard_files()
+            return True
+
+        with patch('file_list_widget.os.path.exists', side_effect=reentrant_exists):
+            widget.add_clipboard_files()
+
+        self.assertEqual(len(exists_calls), 1)
+        self.assertEqual(widget.files, ['/tmp/one.py'])
+
+    def test_clipboard_filesystem_checks_stop_at_probe_budget(self):
+        widget = self.create_widget(True, [])
+        widget.root_path = "C:\\project"
+        path_count = self.fw_module.MAX_CLIPBOARD_PATHS
+
+        class DummyClipboard:
+            def text(self):
+                return "\n".join(
+                    f"missing-{number}.txt" for number in range(path_count)
+                )
+
+        dummy_app = type(
+            'DummyApp',
+            (),
+            {'clipboard': staticmethod(lambda: DummyClipboard())},
+        )
+        self.fw_module.QApplication = dummy_app
+
+        with patch(
+            'file_list_widget.os.path.exists',
+            return_value=False,
+        ) as mock_exists, patch.object(
+            self.fw_module.QMessageBox,
+            'warning',
+            create=True,
+        ) as mock_warning:
+            widget.add_clipboard_files()
+
+        self.assertEqual(
+            mock_exists.call_count,
+            self.fw_module.MAX_CLIPBOARD_FILESYSTEM_PROBES,
+        )
+        self.assertIn(
+            "filesystem safety limit",
+            mock_warning.call_args.args[2],
+        )
+
     def test_add_clipboard_files_skip_duplicates_with_trailing_whitespace(self):
         widget = self.create_widget(True, [])
         widget.add_file('/tmp/sample.py', enforce_filter=False)

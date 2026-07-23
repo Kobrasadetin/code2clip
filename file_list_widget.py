@@ -1,6 +1,7 @@
 import os
 import ntpath
 import posixpath
+import re
 from functools import partial
 from typing import Callable, Iterable, Optional
 
@@ -16,8 +17,27 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QClipboard
 from PyQt5.QtCore import QDateTime, Qt
 
+from busy_indicator import busy_cursor
 from wsl_utilities import convert_wsl_path
 from utils import safe_relpath, list_files
+
+
+MAX_CLIPBOARD_TEXT_CHARS = 256 * 1024
+MAX_CLIPBOARD_PATHS = 64
+MAX_CLIPBOARD_PATH_CHARS = 4096
+MAX_CLIPBOARD_FILESYSTEM_PROBES = 64
+MAX_WARNING_PATHS = 10
+
+_WINDOWS_DEVICE_NAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    "CLOCK$",
+    *(f"COM{number}" for number in range(1, 10)),
+    *(f"LPT{number}" for number in range(1, 10)),
+}
+
 
 class FileListWidget(QListWidget):
     def __init__(
@@ -42,6 +62,7 @@ class FileListWidget(QListWidget):
         self._redo_handler: Optional[Callable[[], None]] = None
         self._can_undo: Optional[Callable[[], bool]] = None
         self._can_redo: Optional[Callable[[], bool]] = None
+        self._clipboard_import_active = False
 
     def _looks_like_windows_path(self, filepath: str) -> bool:
         if not filepath:
@@ -190,51 +211,194 @@ class FileListWidget(QListWidget):
 
         menu.exec_(self.mapToGlobal(event.pos()))
 
-    def add_clipboard_files(self):
-        clipboard: QClipboard = QApplication.clipboard()
-        text = clipboard.text()
-        # split text by newline and filter out empty strings
-        file_paths = list(filter(None, text.split("\n")))
-        not_found_files = []
-        ssh_ctrl = getattr(self.ctx, "ssh", None)
-        ssh = ssh_ctrl.manager if ssh_ctrl else None
-        host = ssh.host if (ssh and ssh_ctrl and ssh_ctrl.is_connected()) else None
-        for file_path in file_paths:
-            original = file_path
-            file_path = self.strip_quotes(file_path)
-            file_path = convert_wsl_path(file_path, host)
-            if ssh and ssh.is_connected() and file_path.startswith("/"):
-                if ssh.path_exists(file_path):
-                    self.add_file(file_path, enforce_filter=False)
-                else:
-                    not_found_files.append(original)
-            elif os.path.exists(file_path):
-                self.add_file(file_path, enforce_filter=False)
-            elif self.root_path:
-                candidate = os.path.join(self.root_path, file_path)
-                if os.path.exists(candidate):
-                    self.add_file(candidate, enforce_filter=False)
-                else:
-                    not_found_files.append(original)
-            else:
-                not_found_files.append(original)
+    def _clipboard_paths(self, text: str) -> tuple[list[str], Optional[str]]:
+        if len(text) > MAX_CLIPBOARD_TEXT_CHARS:
+            return [], (
+                "The clipboard text is too large to safely interpret as file paths "
+                f"(limit: {MAX_CLIPBOARD_TEXT_CHARS // 1024} KiB)."
+            )
+
+        lines = [line for line in text.splitlines() if line.strip()]
+        if len(lines) > MAX_CLIPBOARD_PATHS:
+            return [], (
+                "The clipboard contains too many lines to safely interpret as file "
+                f"paths (limit: {MAX_CLIPBOARD_PATHS})."
+            )
+
+        paths: list[str] = []
+        seen: set[str] = set()
+        invalid_count = 0
+        for line in lines:
+            path = self.strip_quotes(line)
+            if not self._is_safe_clipboard_path(path):
+                invalid_count += 1
+                continue
+            key = self._canonical_key(path)
+            if key not in seen:
+                seen.add(key)
+                paths.append(path)
+
+        warning = None
+        if invalid_count:
+            warning = (
+                f"Ignored {invalid_count} clipboard "
+                f"{'line' if invalid_count == 1 else 'lines'} that did not look "
+                "like safe filesystem paths."
+            )
+        return paths, warning
+
+    def _is_safe_clipboard_path(self, path: str) -> bool:
+        if not path or len(path) > MAX_CLIPBOARD_PATH_CHARS:
+            return False
+        if "\ufffd" in path or any(ord(character) < 32 for character in path):
+            return False
+
+        # Avoid URLs and wildcard expansion. They are text, not literal paths.
+        if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", path):
+            return False
+        if "*" in path or "?" in path:
+            return False
+
+        if os.name == "nt" or self._looks_like_windows_path(path):
+            drive, tail = ntpath.splitdrive(path)
+            if ":" in tail or any(character in tail for character in '<>"|'):
+                return False
+            components = re.split(r"[\\/]+", tail)
+            for component in components:
+                device_name = component.rstrip(" .").split(".", 1)[0].upper()
+                if device_name in _WINDOWS_DEVICE_NAMES:
+                    return False
+            if drive and not (
+                re.match(r"^[a-zA-Z]:$", drive)
+                or drive.startswith(("\\\\", "//"))
+            ):
+                return False
+        return True
+
+    def _show_clipboard_warning(
+        self,
+        validation_warning: Optional[str],
+        not_found_files: list[str],
+        probe_limit_reached: bool,
+    ) -> None:
+        messages = []
+        if validation_warning:
+            messages.append(validation_warning)
+        if probe_limit_reached:
+            messages.append(
+                "Stopped checking paths after reaching the filesystem safety limit "
+                f"of {MAX_CLIPBOARD_FILESYSTEM_PROBES} probes."
+            )
         if not_found_files:
+            shown = not_found_files[:MAX_WARNING_PATHS]
+            message = "Files not found:\n" + "\n".join(shown)
+            remaining = len(not_found_files) - len(shown)
+            if remaining:
+                message += f"\n... and {remaining} more."
+            messages.append(message)
+        if messages:
             QMessageBox.warning(
                 self,
-                "Files Not Found",
-                "The following files were not found:\n" + "\n".join(not_found_files),
+                "Clipboard Files Not Added",
+                "\n\n".join(messages),
             )
+
+    def add_clipboard_files(self):
+        if self.__dict__.get("_clipboard_import_active", False):
+            return
+
+        self._clipboard_import_active = True
+        try:
+            clipboard: QClipboard = QApplication.clipboard()
+            file_paths, validation_warning = self._clipboard_paths(
+                clipboard.text()
+            )
+            if not file_paths:
+                self._show_clipboard_warning(validation_warning, [], False)
+                return
+
+            with busy_cursor(QApplication):
+                not_found_files = []
+                new_files = []
+                probes = 0
+                probe_limit_reached = False
+                ssh_ctrl = getattr(self.ctx, "ssh", None)
+                ssh = ssh_ctrl.manager if ssh_ctrl else None
+                connected = bool(
+                    ssh
+                    and ssh_ctrl
+                    and ssh_ctrl.is_connected()
+                    and ssh.is_connected()
+                )
+                host = ssh.host if connected else None
+                known_keys = {
+                    self._canonical_key(path) for path in self.files
+                }
+
+                for original in file_paths:
+                    file_path = convert_wsl_path(original, host)
+                    found_path = None
+                    candidates = [file_path]
+                    if (
+                        self.root_path
+                        and not ntpath.isabs(file_path)
+                        and not posixpath.isabs(file_path)
+                    ):
+                        candidates.append(os.path.join(self.root_path, file_path))
+
+                    for candidate in candidates:
+                        if probes >= MAX_CLIPBOARD_FILESYSTEM_PROBES:
+                            probe_limit_reached = True
+                            break
+                        probes += 1
+                        if connected and candidate.startswith("/"):
+                            exists = ssh.path_exists(candidate)
+                        else:
+                            exists = os.path.exists(candidate)
+                        if exists:
+                            found_path = candidate
+                            break
+
+                    if probe_limit_reached:
+                        break
+                    if found_path is None:
+                        not_found_files.append(original)
+                        continue
+
+                    normalized = self._normalize_incoming_path(found_path)
+                    key = self._canonical_key(normalized)
+                    if key not in known_keys:
+                        known_keys.add(key)
+                        new_files.append(normalized)
+
+                if new_files:
+                    self.files.extend(new_files)
+                    self.update_list_display()
+                    self._notify_change()
+            self._show_clipboard_warning(
+                validation_warning,
+                not_found_files,
+                probe_limit_reached,
+            )
+        finally:
+            self._clipboard_import_active = False
 
     def add_folder(self, folder_path=None):
         if folder_path:
             settings = getattr(self.ctx, "settings", None)
             filters = settings.extension_filters if settings else None
             ignores = settings.ignore_filters if settings else None
-            files = list_files(
-                folder_path,
-                filters,
-                ignores,
-            )
+            with busy_cursor(QApplication):
+                files = list_files(
+                    folder_path,
+                    filters,
+                    ignores,
+                )
+                all_files = (
+                    None
+                    if files
+                    else list_files(folder_path, None, ignores)
+                )
             allowed_files = [f for f in files if self.is_allowed(f)]
             if allowed_files:
                 normalized_files = [self._normalize_incoming_path(f) for f in allowed_files]
@@ -244,7 +408,6 @@ class FileListWidget(QListWidget):
                     self.update_list_display()
                     self._notify_change()
             else:
-                all_files = list_files(folder_path, None, ignores)
                 if not all_files:
                     QMessageBox.information(
                         self,
@@ -301,23 +464,24 @@ class FileListWidget(QListWidget):
     def check_encoding(self, item):
         filepath = item.data(Qt.UserRole)
         try:
-            with open(filepath, 'rb') as f:
-                raw_data = f.read()
+            with busy_cursor(QApplication):
+                with open(filepath, 'rb') as f:
+                    raw_data = f.read()
                 result = chardet.detect(raw_data)
                 encoding = result['encoding']
                 confidence = result['confidence']
-                if encoding:
-                    QMessageBox.information(
-                        self,
-                        "File Encoding",
-                        f"Encoding: {encoding}\nConfidence: {confidence*100:.2f}%",
-                    )
-                else:
-                    QMessageBox.warning(
-                        self,
-                        "Encoding Detection Failed",
-                        "Could not detect the encoding of the file.",
-                    )
+            if encoding:
+                QMessageBox.information(
+                    self,
+                    "File Encoding",
+                    f"Encoding: {encoding}\nConfidence: {confidence*100:.2f}%",
+                )
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Encoding Detection Failed",
+                    "Could not detect the encoding of the file.",
+                )
         except Exception as e:
             QMessageBox.critical(
                 self,

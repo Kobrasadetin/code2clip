@@ -1,12 +1,13 @@
 """Utilities for handling WSL paths on Windows systems."""
 
-import os
 import platform
 import subprocess
+from functools import lru_cache
 from typing import Optional
 import sys
 
 
+@lru_cache(maxsize=1)
 def get_default_wsl_distro() -> Optional[str]:
     """Retrieve the default WSL2 distribution name and clean null bytes."""
     try:
@@ -37,10 +38,8 @@ def convert_wsl_path(filepath: str, network_host: Optional[str] = None) -> str:
     if platform.system() == "Windows" and filepath.startswith("/"):
         default_distro = get_default_wsl_distro()
         if default_distro:
-            windows_path = (
+            return (
                 f"\\\\wsl.localhost\\{default_distro}" + filepath.replace("/", "\\")
             )
-            if os.path.isfile(windows_path):
-                return windows_path
     return filepath
 

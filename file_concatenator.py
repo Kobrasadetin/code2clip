@@ -2,6 +2,7 @@ import os
 import chardet
 from PyQt5.QtWidgets import QApplication, QMessageBox
 from PyQt5.QtGui import QClipboard
+from busy_indicator import busy_cursor
 from utils import safe_relpath
 
 
@@ -40,39 +41,59 @@ def concatenate_files(
 
     concatenated_text = ""
     warnings: list[str] = []
+    read_error = None
 
-    for filepath in file_paths:
-        filepath_string, warn_msg = safe_relpath(filepath, root_path)
-        if warn_msg:
-            warnings.append(warn_msg)
+    with busy_cursor(QApplication):
+        for filepath in file_paths:
+            filepath_string, warn_msg = safe_relpath(filepath, root_path)
+            if warn_msg:
+                warnings.append(warn_msg)
 
-        file_prefix = prefix.replace("$filepath", filepath_string)
+            file_prefix = prefix.replace("$filepath", filepath_string)
 
-        try:
-            if ssh_manager and ssh_manager.is_connected() and filepath.startswith("/"):
-                raw_data = ssh_manager.read_bytes(filepath)
-            else:
-                with open(filepath, "rb") as file:
-                    raw_data = file.read()
             try:
-                content = raw_data.decode("utf-8")
-            except UnicodeDecodeError:
-                result = chardet.detect(raw_data)
-                encoding = result["encoding"]
-                if encoding:
-                    content = raw_data.decode(encoding)
+                if (
+                    ssh_manager
+                    and ssh_manager.is_connected()
+                    and filepath.startswith("/")
+                ):
+                    raw_data = ssh_manager.read_bytes(filepath)
                 else:
-                    raise UnicodeDecodeError("Unknown encoding", b"", 0, 0, "Unknown")
-        except Exception as e:
-            QMessageBox.critical(None, "Error", f"Failed to read {filepath}.\n{str(e)}")
-            return
+                    with open(filepath, "rb") as file:
+                        raw_data = file.read()
+                try:
+                    content = raw_data.decode("utf-8")
+                except UnicodeDecodeError:
+                    result = chardet.detect(raw_data)
+                    encoding = result["encoding"]
+                    if encoding:
+                        content = raw_data.decode(encoding)
+                    else:
+                        raise UnicodeDecodeError(
+                            "Unknown encoding",
+                            b"",
+                            0,
+                            0,
+                            "Unknown",
+                        )
+            except Exception as exc:
+                read_error = (filepath, exc)
+                break
 
-        # Wrap content with custom prefix and suffix
-        concatenated_text += f"{file_prefix}\n{content}\n{suffix}\n"
+            concatenated_text += f"{file_prefix}\n{content}\n{suffix}\n"
 
-    # Copy to clipboard
-    clipboard: QClipboard = QApplication.clipboard()
-    clipboard.setText(concatenated_text)
+        if read_error is None:
+            clipboard: QClipboard = QApplication.clipboard()
+            clipboard.setText(concatenated_text)
+
+    if read_error is not None:
+        filepath, exc = read_error
+        QMessageBox.critical(
+            None,
+            "Error",
+            f"Failed to read {filepath}.\n{str(exc)}",
+        )
+        return
 
     if warnings:
         QMessageBox.warning(None, "Path Error", "\n".join(sorted(set(warnings))))
