@@ -36,8 +36,15 @@ class FileListWidgetTest(unittest.TestCase):
         self.patch.start()
         import importlib
         self.fw_module = importlib.import_module('file_list_widget')
+        self.wsl_path_patch = patch.object(
+            self.fw_module,
+            'convert_wsl_path',
+            side_effect=lambda path, _host: path,
+        )
+        self.wsl_path_patch.start()
 
     def tearDown(self):
+        self.wsl_path_patch.stop()
         self.patch.stop()
         if 'file_list_widget' in sys.modules:
             del sys.modules['file_list_widget']
